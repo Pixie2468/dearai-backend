@@ -1,13 +1,17 @@
 """Tests for app.core.config."""
 
+from pydantic_settings import BaseSettings
 from app.core.config import Settings
+
+
+class TestSettingsNoEnv(Settings):
+    model_config = Settings.model_config.copy()
+    model_config["env_file"] = None  # don't read .env during tests
 
 
 class TestSettings:
     def test_defaults(self):
-        s = Settings(
-            _env_file=None,  # don't read .env during tests
-        )
+        s = TestSettingsNoEnv()
         assert s.app_name == "Mental Health Companion"
         assert s.debug is False
         assert s.jwt_algorithm == "HS256"
@@ -21,5 +25,5 @@ class TestSettings:
         assert s.guardrails_enabled is True
 
     def test_database_url_default(self):
-        s = Settings(_env_file=None)
+        s = TestSettingsNoEnv()
         assert "postgresql+asyncpg" in s.database_url
