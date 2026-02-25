@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from collections.abc import AsyncGenerator
+from typing import Any
 
 
 class LLMMessage:
@@ -14,15 +16,12 @@ class BaseLLM(ABC):
     """Abstract base class for LLM providers."""
 
     @abstractmethod
-    async def chat(
-        self, messages: list[LLMMessage], system_prompt: str | None = None
-    ) -> str:
+    async def chat(self, messages: list[LLMMessage], system_prompt: str | None = None) -> str:
         """Send messages to LLM and get response."""
         pass
 
     @abstractmethod
     async def chat_stream(
         self, messages: list[LLMMessage], system_prompt: str | None = None
-    ):
-        """Stream response from LLM."""
-        pass
+    ) -> AsyncGenerator[str, Any]:
+        """Stream response tokens from LLM."""

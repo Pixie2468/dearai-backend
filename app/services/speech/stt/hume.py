@@ -1,7 +1,5 @@
 """Hume AI Speech-to-Text provider."""
 
-import base64
-
 import httpx
 
 from app.core.config import settings
