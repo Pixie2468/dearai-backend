@@ -2,12 +2,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # App
-    app_name: str = "Mental Health Companion"
+    app_name: str = "Dear AI"
     debug: bool = False
 
     # Database
@@ -19,13 +17,13 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
-    refresh_token_expire_days: int = 7
+    refresh_token_expire_days: int = 30
 
     # LLM – Vertex AI / Gemini
     llm_provider: str = "vertex"
     vertex_project: str = ""
     vertex_location: str = "us-central1"
-    llm_model: str = "gemini-2.0-flash"
+    llm_model: str = "gemini-2.5-flash"
 
     # Hume.ai (STT + TTS + Emotion Detection)
     stt_provider: str = "hume"
@@ -33,6 +31,9 @@ class Settings(BaseSettings):
     hume_api_key: str = ""
     hume_secret_key: str = ""
     hume_tts_voice: str = "Kora"
+
+    # SarvamAI
+    sarvam_api_key: str = ""
 
     # Redis Cache
     redis_url: str = "redis://localhost:6380"

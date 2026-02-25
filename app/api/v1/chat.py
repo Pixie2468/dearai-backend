@@ -5,15 +5,17 @@ from uuid import UUID
 from fastapi import APIRouter, File, Form, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 
+from app.core.dependencies import CurrentUser, DbSession
+from app.services.cache.rag_cache import get_cached_rag_response
 from app.services.chat.schemas import (
     TextChatRequest,
     TextChatResponse,
     VoiceChatResponse,
 )
 from app.services.chat.service import process_text_chat, process_voice_chat
-from app.services.cache.rag_cache import get_cached_rag_response
-from app.services.llm.vertex import generate_immediate_response
-from app.core.dependencies import CurrentUser, DbSession
+from app.services.llm.base import LLMMessage
+from app.services.llm.prompts import BASE_PROMPT
+from app.services.llm.vertex import VertexLLM
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +43,7 @@ async def voice_chat(
     The audio file should be in a supported format (wav, mp3, webm, etc.)
     """
     audio_data = await audio.read()
-    response, _ = await process_voice_chat(
-        db, current_user.id, conversation_id, audio_data
-    )
+    response, _ = await process_voice_chat(db, current_user.id, conversation_id, audio_data)
     return response
 
 
@@ -60,9 +60,7 @@ async def voice_chat_with_audio(
     Returns the audio response directly as bytes.
     """
     audio_data = await audio.read()
-    _, audio_response = await process_voice_chat(
-        db, current_user.id, conversation_id, audio_data
-    )
+    _, audio_response = await process_voice_chat(db, current_user.id, conversation_id, audio_data)
 
     if audio_response:
         return Response(content=audio_response, media_type="audio/mpeg")
@@ -77,10 +75,10 @@ async def voice_chat_with_audio(
 async def _send_immediate(websocket: WebSocket, user_message: str) -> None:
     """Run the fast Vertex AI acknowledgement and send over WebSocket."""
     try:
-        content = await asyncio.wait_for(
-            generate_immediate_response(user_message),
-            timeout=3.0,
-        )
+        llm = VertexLLM()
+
+        messages = [LLMMessage(role="user", content=user_message)]
+        content = await llm.chat(messages, BASE_PROMPT)
         await websocket.send_json(
             {
                 "layer": "immediate",
@@ -90,7 +88,7 @@ async def _send_immediate(websocket: WebSocket, user_message: str) -> None:
         )
     except asyncio.CancelledError:
         raise
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("Immediate response timed out, skipping.")
     except Exception:
         logger.exception("Immediate response failed.")
@@ -159,9 +157,7 @@ async def websocket_chat(websocket: WebSocket):
             active_tasks.clear()
 
             # 2. Launch both layers concurrently
-            immediate_task = asyncio.create_task(
-                _send_immediate(websocket, user_message)
-            )
+            immediate_task = asyncio.create_task(_send_immediate(websocket, user_message))
             rag_task = asyncio.create_task(_send_rag(websocket, user_message))
 
             active_tasks.extend([immediate_task, rag_task])
