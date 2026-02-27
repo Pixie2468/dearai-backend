@@ -43,9 +43,7 @@ class MessageType(str, Enum):
 class Conversation(Base):
     __tablename__ = "conversations"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -56,9 +54,7 @@ class Conversation(Base):
     type: Mapped[ConversationType] = mapped_column(
         SQLEnum(ConversationType), nullable=False, default=ConversationType.friend
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -78,9 +74,7 @@ class Conversation(Base):
 class Message(Base):
     __tablename__ = "messages"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     conv_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="CASCADE"),
@@ -101,13 +95,11 @@ class Message(Base):
     # Requires: CREATE EXTENSION IF NOT EXISTS vector; in the database.
     # Nullable so existing rows are not affected until embeddings are computed.
     # -----------------------------------------------------------------------
-    embedding: Mapped[list[float] | None] = mapped_column(
-        Vector(1536), nullable=True
-    )
+    # embedding: Mapped[list[float] | None] = mapped_column(
+    #     Vector(1536), nullable=True
+    # )
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
@@ -116,9 +108,7 @@ class Message(Base):
 class Summary(Base):
     __tablename__ = "summaries"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     conv_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="CASCADE"),
@@ -131,9 +121,7 @@ class Summary(Base):
         ForeignKey("messages.id", ondelete="SET NULL"),
         nullable=True,
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     conversation: Mapped["Conversation"] = relationship(back_populates="summaries")

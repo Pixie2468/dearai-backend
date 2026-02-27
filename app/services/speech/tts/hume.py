@@ -1,7 +1,5 @@
 """Hume AI Text-to-Speech provider using the Octave TTS API."""
 
-import base64
-
 import httpx
 
 from app.core.config import settings
@@ -16,7 +14,7 @@ class HumeTTS(BaseTTS):
         self.base_url = "https://api.hume.ai/v0"
         self.default_voice = settings.hume_tts_voice
 
-    async def synthesize(self, text: str, voice: str | None = None) -> bytes:
+    async def synthesize(self, text, voice, lang=None) -> bytes:
         """Convert text to speech via Hume AI TTS API.
 
         Args:

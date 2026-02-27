@@ -5,6 +5,6 @@ class BaseSTT(ABC):
     """Abstract base class for Speech-to-Text providers."""
 
     @abstractmethod
-    async def transcribe(self, audio_data: bytes, language: str) -> str:
+    async def transcribe(self, audio_data: bytes, language: str | None) -> str:
         """Transcribe audio to text."""
         pass

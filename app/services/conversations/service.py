@@ -12,7 +12,7 @@ from app.services.conversations.schemas import ConversationCreate, ConversationU
 async def create_conversation(
     db: AsyncSession, user_id: UUID, data: ConversationCreate
 ) -> Conversation:
-    conversation = Conversation(user_id=user_id, title=data.title, type=data.type)
+    conversation = Conversation(id=data.id, user_id=user_id, title=data.title, type=data.type)
     db.add(conversation)
     await db.flush()
     await db.refresh(conversation)
@@ -24,9 +24,7 @@ async def get_conversations(
 ) -> tuple[list[Conversation], int]:
     # Get total count
     count_result = await db.execute(
-        select(func.count())
-        .select_from(Conversation)
-        .where(Conversation.user_id == user_id)
+        select(func.count()).select_from(Conversation).where(Conversation.user_id == user_id)
     )
     total = count_result.scalar() or 0
 
@@ -51,9 +49,7 @@ async def get_conversation_by_id(
     )
     conversation = result.scalar_one_or_none()
     if not conversation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
     return conversation
 
 
@@ -68,18 +64,14 @@ async def update_conversation(
     return conversation
 
 
-async def delete_conversation(
-    db: AsyncSession, conversation_id: UUID, user_id: UUID
-) -> None:
+async def delete_conversation(db: AsyncSession, conversation_id: UUID, user_id: UUID) -> None:
     result = await db.execute(
         delete(Conversation).where(
             Conversation.id == conversation_id, Conversation.user_id == user_id
         )
     )
     if result.rowcount == 0:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
 
 async def add_message(

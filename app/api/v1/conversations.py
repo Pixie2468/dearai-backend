@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query
 
+from app.core.dependencies import CurrentUser, DbSession
 from app.services.conversations.schemas import (
     ConversationCreate,
     ConversationListResponse,
@@ -16,7 +17,6 @@ from app.services.conversations.service import (
     get_conversations,
     update_conversation,
 )
-from app.core.dependencies import CurrentUser, DbSession
 
 router = APIRouter()
 
@@ -36,13 +36,13 @@ async def list_conversations(
     limit: int = Query(50, ge=1, le=100),
 ):
     conversations, total = await get_conversations(db, current_user.id, skip, limit)
-    return ConversationListResponse(conversations=[ConversationResponse.model_validate(c) for c in conversations], total=total)
+    return ConversationListResponse(
+        conversations=[ConversationResponse.model_validate(c) for c in conversations], total=total
+    )
 
 
 @router.get("/{conversation_id}", response_model=ConversationWithMessages)
-async def get_conversation(
-    db: DbSession, current_user: CurrentUser, conversation_id: UUID
-):
+async def get_conversation(db: DbSession, current_user: CurrentUser, conversation_id: UUID):
     return await get_conversation_by_id(db, conversation_id, current_user.id)
 
 
@@ -57,7 +57,5 @@ async def update_conversation_title(
 
 
 @router.delete("/{conversation_id}", status_code=204)
-async def remove_conversation(
-    db: DbSession, current_user: CurrentUser, conversation_id: UUID
-):
+async def remove_conversation(db: DbSession, current_user: CurrentUser, conversation_id: UUID):
     await delete_conversation(db, conversation_id, current_user.id)

@@ -2,6 +2,7 @@ import base64
 
 from sarvamai import SarvamAI
 
+# from sarvamai.play import play
 from app.core.config import settings
 from app.services.speech.tts.base import BaseTTS
 
@@ -11,9 +12,10 @@ class SarvamTTS(BaseTTS):
         self.client = SarvamAI(api_subscription_key=settings.sarvam_api_key)
         self.model = model
 
-    async def synthesize(self, text: str, lang: str = "en-IN", voice: str = "shubh") -> bytes:
+    async def synthesize(self, text, voice="shubh", lang="hi-IN") -> bytes:
         response = self.client.text_to_speech.convert(
-            model=self.model, speaker=voice, text=text, target_language_code=lang
+            model=self.model, text=text, speaker=voice, target_language_code=lang
         )
+        # play(response)
         response.audios[0]
         return base64.b64decode(response.audios[0])

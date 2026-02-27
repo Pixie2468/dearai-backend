@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.core.dependencies import DbSession
 from app.services.auth.schemas import (
     LoginRequest,
     LogoutRequest,
@@ -15,7 +16,6 @@ from app.services.auth.service import (
     refresh_access_token,
     register_user,
 )
-from app.core.dependencies import DbSession
 from app.services.users.schemas import UserResponse
 
 router = APIRouter()

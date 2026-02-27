@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 
 dependencies = [
     # Web
-    "fastapi>=0.115,<1.0",
+    "fastapi[standard]>=0.115,<1.0",
     "uvicorn[standard]>=0.30,<1.0",
     # Configuration
     "pydantic[email]>=2.8,<3.0",

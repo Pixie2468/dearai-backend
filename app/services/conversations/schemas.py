@@ -23,8 +23,9 @@ class MessageType(str, Enum):
 
 # Conversation schemas
 class ConversationCreate(BaseModel):
+    id: str | None = None
     title: str | None = None
-    type: ConversationType = ConversationType.friend
+    type: ConversationType = ConversationType.therapy
 
 
 class ConversationUpdate(BaseModel):

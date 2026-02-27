@@ -42,6 +42,7 @@ async def voice_chat(
 
     The audio file should be in a supported format (wav, mp3, webm, etc.)
     """
+    print(audio, type(audio))
     audio_data = await audio.read()
     response, _ = await process_voice_chat(db, current_user.id, conversation_id, audio_data)
     return response

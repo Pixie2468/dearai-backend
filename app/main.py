@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 # Import models so that Base.metadata is fully populated (required for
 # Alembic autogenerate and any create_all usage during development).
-import app.models  # noqa: F401
+# import app.models  # noqa: F401
 from app.api.v1.auth import router as auth_router
 from app.api.v1.chat import router as chat_router
 from app.api.v1.conversations import router as conversations_router

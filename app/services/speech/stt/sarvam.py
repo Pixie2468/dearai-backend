@@ -11,9 +11,11 @@ class SarvamSTT(BaseSTT):
         self.client = SarvamAI(api_subscription_key=settings.sarvam_api_key)
         self.model = model
 
-    async def transcribe(self, audio_data: bytes, language: str = "en") -> str:
+    async def transcribe(self, audio_data, language=None) -> str:
         audio_file = io.BytesIO(audio_data)
         audio_file.name = "audio.webm"
 
-        response = self.client.speech_to_text.transcribe(model=self.model, file=audio_file)
+        response = self.client.speech_to_text.transcribe(
+            model=self.model, file=audio_file, language_code=language
+        )
         return response.transcript

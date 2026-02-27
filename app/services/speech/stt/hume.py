@@ -13,7 +13,7 @@ class HumeSTT(BaseSTT):
         self.api_key = settings.hume_api_key
         self.base_url = "https://api.hume.ai/v0"
 
-    async def transcribe(self, audio_data: bytes, language: str = "en") -> str:
+    async def transcribe(self, audio_data, language=None) -> str:
         """Transcribe audio bytes using Hume AI.
 
         Args:

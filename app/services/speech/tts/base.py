@@ -5,6 +5,6 @@ class BaseTTS(ABC):
     """Abstract base class for Text-to-Speech providers."""
 
     @abstractmethod
-    async def synthesize(self, text: str, lang: str, voice: str) -> bytes:
+    async def synthesize(self, text: str, voice: str, lang: str | None) -> bytes:
         """Convert text to speech audio."""
         pass
