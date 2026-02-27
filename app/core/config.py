@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     llm_provider: str = "vertex"
     vertex_project: str = ""
     vertex_location: str = "us-central1"
-    llm_model: str = "gemini-2.5-flash"
+    llm_model: str = "Dear-AI_1.1"
 
     # Hume.ai (STT + TTS + Emotion Detection)
     stt_provider: str = "hume"
