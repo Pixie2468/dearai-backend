@@ -23,22 +23,27 @@ logger = logging.getLogger(__name__)
 _KEY_PREFIX = "rag_cache:"
 
 
-def _build_cache_key(user_message: str) -> str:
-    """Deterministic cache key from the user message."""
-    digest = hashlib.sha256(user_message.strip().encode()).hexdigest()
+def _build_cache_key(user_message: str, user_id: str = "") -> str:
+    """Deterministic cache key from the user message and user ID."""
+    raw = f"{user_id}:{user_message.strip()}"
+    digest = hashlib.sha256(raw.encode()).hexdigest()
     return f"{_KEY_PREFIX}{digest}"
 
 
-async def get_cached_rag_response(user_message: str) -> str:
+async def get_cached_rag_response(
+    user_message: str,
+    user_id: str = "",
+    conversation_history: list[dict[str, str]] | None = None,
+) -> str:
     """Return a Graph RAG response, using Redis cache when available.
 
     Flow:
-        1. Compute cache key from *user_message*.
+        1. Compute cache key from *user_message* + *user_id*.
         2. If Redis is reachable **and** holds a cached value → return it.
         3. Otherwise run ``run_graph_rag`` live.
         4. Store the fresh result in Redis (best-effort, non-blocking on failure).
     """
-    cache_key = _build_cache_key(user_message)
+    cache_key = _build_cache_key(user_message, user_id)
     redis = get_client()
 
     # --- Try cache hit ---
@@ -54,7 +59,11 @@ async def get_cached_rag_response(user_message: str) -> str:
             )
 
     # --- Cache miss: execute pipeline ---
-    result = await run_graph_rag(user_message)
+    result = await run_graph_rag(
+        user_message,
+        user_id=user_id,
+        conversation_history=conversation_history,
+    )
 
     # --- Best-effort store ---
     if redis is not None:

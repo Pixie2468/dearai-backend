@@ -16,8 +16,6 @@ def _prehash_password(password: str) -> bytes:
     1. Allow passwords of any length
     2. Always produce a fixed 64-character hex string (well under 72 bytes)
     3. Maintain security (SHA-256 is a secure hash function)
-
-    This technique is used by Dropbox and other security-conscious services.
     """
     return hashlib.sha256(password.encode()).hexdigest().encode()
 

@@ -6,7 +6,11 @@ def get_tts(provider: str | None = None) -> BaseTTS:
     """Factory function to get TTS provider instance."""
     provider = provider or settings.tts_provider
 
-    if provider == "hume":
+    if provider == "sarvam":
+        from app.services.speech.tts.sarvam import SarvamTTS
+
+        return SarvamTTS()
+    elif provider == "hume":
         from app.services.speech.tts.hume import HumeTTS
 
         return HumeTTS()

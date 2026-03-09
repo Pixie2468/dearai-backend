@@ -1,7 +1,5 @@
 """Hume AI Speech-to-Text provider."""
 
-import base64
-
 import httpx
 
 from app.core.config import settings
@@ -15,7 +13,9 @@ class HumeSTT(BaseSTT):
         self.api_key = settings.hume_api_key
         self.base_url = "https://api.hume.ai/v0"
 
-    async def transcribe(self, audio_data: bytes, language: str = "en") -> str:
+    async def transcribe(
+        self, audio_data: bytes, language: str = "en"
+    ) -> tuple[str, str]:
         """Transcribe audio bytes using Hume AI.
 
         Args:
@@ -24,7 +24,9 @@ class HumeSTT(BaseSTT):
                     included for interface compatibility).
 
         Returns:
-            Transcribed text string.
+            A ``(transcript, detected_language)`` tuple. Hume does not
+            report a detected language, so the second element is always
+            ``""``.
         """
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -50,4 +52,4 @@ class HumeSTT(BaseSTT):
             )
 
             text_parts = [p.get("text", "") for p in predictions]
-            return " ".join(text_parts).strip()
+            return " ".join(text_parts).strip(), ""

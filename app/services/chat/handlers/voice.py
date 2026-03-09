@@ -38,7 +38,7 @@ async def handle_voice_chat(
     """
     # 1. Transcribe audio
     stt = get_stt()
-    transcript = await stt.transcribe(audio_data)
+    transcript, _detected_lang = await stt.transcribe(audio_data)
 
     # 2. Detect emotions
     emotion_result = await hume_detector.detect_from_audio(audio_data)

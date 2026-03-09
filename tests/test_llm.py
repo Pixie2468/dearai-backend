@@ -89,20 +89,35 @@ class TestVertexLLM:
 
 
 class TestSpeechFactories:
-    def test_get_stt_google(self, monkeypatch):
-        monkeypatch.setattr("app.core.config.settings.stt_provider", "google")
-        with patch("app.services.speech.stt.google.speech"):
-            from app.services.speech.stt import get_stt
-            from app.services.speech.stt.base import BaseSTT
+    def test_get_stt_sarvam(self, monkeypatch):
+        monkeypatch.setattr("app.core.config.settings.stt_provider", "sarvam")
+        from app.services.speech.stt import get_stt
+        from app.services.speech.stt.base import BaseSTT
 
-            stt = get_stt("google")
-            assert isinstance(stt, BaseSTT)
+        stt = get_stt("sarvam")
+        assert isinstance(stt, BaseSTT)
+
+    def test_get_stt_hume(self, monkeypatch):
+        monkeypatch.setattr("app.core.config.settings.stt_provider", "hume")
+        from app.services.speech.stt import get_stt
+        from app.services.speech.stt.base import BaseSTT
+
+        stt = get_stt("hume")
+        assert isinstance(stt, BaseSTT)
 
     def test_get_stt_unknown(self):
         from app.services.speech.stt import get_stt
 
         with pytest.raises(ValueError, match="Unknown STT provider"):
             get_stt("nonexistent")
+
+    def test_get_tts_sarvam(self, monkeypatch):
+        monkeypatch.setattr("app.core.config.settings.tts_provider", "sarvam")
+        from app.services.speech.tts import get_tts
+        from app.services.speech.tts.base import BaseTTS
+
+        tts = get_tts("sarvam")
+        assert isinstance(tts, BaseTTS)
 
     def test_get_tts_hume(self, monkeypatch):
         monkeypatch.setattr("app.core.config.settings.tts_provider", "hume")

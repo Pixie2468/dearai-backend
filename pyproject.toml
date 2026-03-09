@@ -1,14 +1,14 @@
 [project]
-name = "mental-health-companion"
+name = "dearai-backend"
 version = "0.1.0"
-description = "Mental health companion chat API with voice support"
+description = "Dear AI – mental health companion backend with two-layer chat, Graph RAG, and voice support"
 readme = "README.md"
 requires-python = ">=3.11"
 
 dependencies = [
     # Web
     "fastapi>=0.115,<1.0",
-    "uvicorn[standard]>=0.30,<1.0",
+    "fastapi-cli>=0.0.7",
 
     # Configuration
     "pydantic>=2.8,<3.0",
@@ -27,12 +27,10 @@ dependencies = [
     # Auth & Security
     "python-jose[cryptography]>=3.3,<4.0",
     "bcrypt>=4.0,<5.0",
-    "passlib[bcrypt]>=1.7,<2.0",
     "python-multipart>=0.0.12,<1.0",
 
     # Google Cloud / Vertex AI
     "google-cloud-aiplatform>=1.60,<2.0",
-    "google-cloud-speech>=2.26,<3.0",
     "google-auth>=2.30,<3.0",
 
     # Graph DB (FalkorDB async client)
@@ -48,8 +46,8 @@ dependencies = [
     "orjson>=3.10,<4.0",
     "tenacity>=8.3,<9.0",
 
-    # Structured logging (recommended)
-    "structlog>=24.0,<25.0"
+    # Structured logging
+    "structlog>=24.0,<25.0",
 ]
 
 [project.optional-dependencies]

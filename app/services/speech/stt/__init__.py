@@ -6,7 +6,11 @@ def get_stt(provider: str | None = None) -> BaseSTT:
     """Factory function to get STT provider instance."""
     provider = provider or settings.stt_provider
 
-    if provider == "hume":
+    if provider == "sarvam":
+        from app.services.speech.stt.sarvam import SarvamSTT
+
+        return SarvamSTT()
+    elif provider == "hume":
         from app.services.speech.stt.hume import HumeSTT
 
         return HumeSTT()

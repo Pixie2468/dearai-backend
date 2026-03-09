@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import AsyncIterator
 
 
 class LLMMessage:
@@ -21,8 +22,8 @@ class BaseLLM(ABC):
         pass
 
     @abstractmethod
-    async def chat_stream(
+    def chat_stream(
         self, messages: list[LLMMessage], system_prompt: str | None = None
-    ):
+    ) -> AsyncIterator[str]:
         """Stream response from LLM."""
-        pass
+        ...

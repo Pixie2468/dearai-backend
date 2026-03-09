@@ -1,38 +1,61 @@
 """
 Input guardrails for content moderation.
 
-Uses guardrails-ai library for input validation and safety checks.
+Performs input validation and safety checks. When ``guardrails_enabled``
+is True, the validate method rejects excessively long or empty input.
+Crisis keyword detection always runs regardless of the enabled flag.
 """
 
-from guardrails import Guard
+import re
 
-# from guardrails.hub import ToxicLanguage
 from app.core.config import settings
+
+
+# Maximum allowed message length (characters)
+_MAX_INPUT_LENGTH = 5000
+
+# Patterns that indicate prompt-injection or jailbreak attempts
+_INJECTION_PATTERNS = [
+    re.compile(r"ignore\s+(all\s+)?(previous|above)\s+(instructions|prompts)", re.I),
+    re.compile(r"you\s+are\s+now\s+(DAN|in\s+developer\s+mode)", re.I),
+    re.compile(r"disregard\s+(your|all)\s+(rules|guidelines|instructions)", re.I),
+]
 
 
 class InputGuardrails:
     """Validates and moderates user input before sending to LLM."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.enabled = settings.guardrails_enabled
-        if self.enabled:
-            self.guard = Guard()
 
     async def validate(self, text: str) -> tuple[bool, str | None]:
-        """
-        Validate user input.
+        """Validate user input.
+
+        Checks:
+        - Non-empty after stripping whitespace
+        - Within maximum length
+        - No prompt-injection patterns
 
         Returns:
-            tuple: (is_valid, error_message or None)
+            (is_valid, error_message or None)
         """
         if not self.enabled:
             return True, None
 
-        try:
-            self.guard.validate(text)
-            return True, None
-        except Exception as e:
-            return False, str(e)
+        stripped = text.strip()
+        if not stripped:
+            return False, "Message cannot be empty."
+
+        if len(stripped) > _MAX_INPUT_LENGTH:
+            return False, (
+                f"Message exceeds maximum length of {_MAX_INPUT_LENGTH} characters."
+            )
+
+        for pattern in _INJECTION_PATTERNS:
+            if pattern.search(stripped):
+                return False, "Message contains disallowed content."
+
+        return True, None
 
     async def check_crisis_keywords(self, text: str) -> bool:
         """Check for crisis-related keywords that may need immediate attention."""

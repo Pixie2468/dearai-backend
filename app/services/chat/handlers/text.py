@@ -86,7 +86,15 @@ async def handle_text_chat(
         db, conversation_id, user_id, "assistant", response_content, "text"
     )
 
-    # 8. Return response
+    # 8. Auto-generate summary if threshold reached
+    try:
+        from app.services.context.summary_generator import maybe_generate_summary
+
+        await maybe_generate_summary(db, conversation_id)
+    except Exception:
+        pass  # non-critical, best-effort
+
+    # 9. Return response
     return TextChatResponse(
         message_id=assistant_msg.id,
         content=response_content,

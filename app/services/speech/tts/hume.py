@@ -1,7 +1,5 @@
 """Hume AI Text-to-Speech provider using the Octave TTS API."""
 
-import base64
-
 import httpx
 
 from app.core.config import settings
