@@ -7,8 +7,13 @@ requires-python = ">=3.11"
 
 dependencies = [
     # Web
+<<<<<<< HEAD
     "fastapi[standard]>=0.115,<1.0",
     "uvicorn[standard]>=0.30,<1.0",
+=======
+    "fastapi>=0.115,<1.0",
+    "fastapi-cli>=0.0.7",
+>>>>>>> 1fd6b39 (Add Streamlit frontend, dependencies, drop legacy models, tests.)
     # Configuration
     "pydantic[email]>=2.8,<3.0",
     "pydantic-settings>=2.4,<3.0",
@@ -25,7 +30,12 @@ dependencies = [
     "bcrypt>=4.0,<5.0",
     "passlib[bcrypt]>=1.7,<2.0",
     "python-multipart>=0.0.12,<1.0",
+<<<<<<< HEAD
     "google-cloud-speech>=2.26,<3.0",
+=======
+    # Google Cloud / Vertex AI
+    "google-cloud-aiplatform>=1.60,<2.0",
+>>>>>>> 1fd6b39 (Add Streamlit frontend, dependencies, drop legacy models, tests.)
     "google-auth>=2.30,<3.0",
     # Graph DB (FalkorDB async client)
     "falkordb>=1.0.0",
@@ -36,10 +46,17 @@ dependencies = [
     # Performance / Resilience
     "orjson>=3.10,<4.0",
     "tenacity>=8.3,<9.0",
+<<<<<<< HEAD
     # Structured logging (recommended)
     "structlog>=24.0,<25.0",
     "google-genai>=1.64.0",
     "sarvamai>=0.1.25",
+=======
+    # Structured logging
+    "structlog>=24.0,<25.0",
+    "streamlit",
+    "audio-recorder-streamlit>=0.0.10",
+>>>>>>> 1fd6b39 (Add Streamlit frontend, dependencies, drop legacy models, tests.)
 ]
 
 [project.optional-dependencies]
