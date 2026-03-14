@@ -18,10 +18,11 @@ class BaseLLM(ABC):
     @abstractmethod
     async def chat(self, messages: list[LLMMessage], system_prompt: str | None = None) -> str:
         """Send messages to LLM and get response."""
-        pass
+        ...
 
     @abstractmethod
-    async def chat_stream(
+    def chat_stream(
         self, messages: list[LLMMessage], system_prompt: str | None = None
     ) -> AsyncGenerator[str, Any]:
         """Stream response tokens from LLM."""
+        ...

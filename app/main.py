@@ -9,6 +9,7 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.chat import router as chat_router
 from app.api.v1.conversations import router as conversations_router
 from app.api.v1.users import router as users_router
+from app.core import falkordb as falkordb_client
 from app.core import redis as redis_client
 from app.core.config import settings
 from app.core.database import engine
@@ -18,8 +19,10 @@ from app.core.database import engine
 async def lifespan(app: FastAPI):
     # Startup
     await redis_client.connect()
+    await falkordb_client.connect()
     yield
     # Shutdown – dispose of the async engine's connection pool cleanly.
+    await falkordb_client.close()
     await redis_client.close()
     await engine.dispose()
 

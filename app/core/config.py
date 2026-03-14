@@ -21,7 +21,8 @@ class Settings(BaseSettings):
     llm_provider: str = "vertex"
     vertex_project: str = ""
     vertex_location: str = "global"
-    llm_model: str = ""
+    llm_model: str = ""  # Fine-tuned endpoint for Layer 2
+    layer1_model: str = "gemini-2.0-flash-lite"  # Fast model for Layer 1
 
     stt_provider: str = "sarvam"
     tts_provider: str = "sarvam"
@@ -37,6 +38,11 @@ class Settings(BaseSettings):
     # Redis Cache
     redis_url: str = "redis://localhost:6380"
     rag_cache_ttl_seconds: int = 3600  # 1 hour
+
+    # FalkorDB Graph Database
+    falkor_host: str = "localhost"
+    falkor_port: int = 6379
+    falkor_graph: str = "dear_ai"
 
     # Guardrails
     guardrails_enabled: bool = True

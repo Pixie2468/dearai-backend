@@ -1,16 +1,33 @@
-import asyncio
+"""
+Graph RAG pipeline for Layer 2 responses.
+
+Uses a StateGraph execution engine that:
+1. Extracts entities from the user message via LLM
+2. Queries FalkorDB to find matching nodes and walk the graph
+3. Generates the final response using the fine-tuned Vertex model
+   with injected graph context
+
+If FalkorDB is unavailable or no relevant nodes are found, the pipeline
+gracefully falls back to generating a response without graph context.
+"""
+
+import json
 import logging
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
-from typing import Callable, Awaitable, Dict, Any
+from typing import Any, Awaitable, Callable, Dict
 from uuid import UUID
 
-# FalkorDB Async Imports
-from falkordb.asyncio import FalkorDB
-from redis.asyncio import BlockingConnectionPool
-
+from app.core import falkordb as falkordb_client
 from app.services.context.base import BaseContextProvider
+from app.services.llm.base import LLMMessage
+from app.services.llm.factory import get_layer1_llm, get_layer2_llm
+from app.services.llm.prompts import (
+    ENTITY_EXTRACTION_PROMPT,
+    LAYER2_BASE_PROMPT,
+    LAYER2_CONTEXT_TEMPLATE,
+)
 
-# Configure trace logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(message)s",
@@ -19,11 +36,16 @@ logging.basicConfig(
 logger = logging.getLogger("GraphRAG")
 
 
+# ---------------------------------------------------------------------------
 # State & Type Definitions
+# ---------------------------------------------------------------------------
+
+
 @dataclass
 class ChatState:
     session_id: str
     user_message: str
+    conversation_history: list[LLMMessage] = field(default_factory=list)
     extracted_entities: dict[str, Any] = field(default_factory=dict)
     graph_context: list[str] = field(default_factory=list)
     llm_response: str | None = None
@@ -35,7 +57,11 @@ NodeFunc = Callable[[ChatState], Awaitable[ChatState]]
 ConditionFunc = Callable[[ChatState], str | None]
 
 
+# ---------------------------------------------------------------------------
 # Graph Architecture
+# ---------------------------------------------------------------------------
+
+
 class StateGraph:
     def __init__(self) -> None:
         self.nodes: Dict[str, NodeFunc] = {}
@@ -53,10 +79,10 @@ class StateGraph:
 
     async def execute(self, start_node: str, state: ChatState) -> ChatState:
         current_node_name = start_node
-        logger.info(f"\n--- Starting Graph RAG Execution ---")
+        logger.info("--- Starting Graph RAG Execution ---")
 
         while current_node_name and not state.should_stop:
-            logger.info(f"Executing: '{current_node_name}'")
+            logger.info("Executing: '%s'", current_node_name)
             node_func = self.nodes.get(current_node_name)
 
             if not node_func:
@@ -83,173 +109,205 @@ class StateGraph:
         return state
 
 
+# ---------------------------------------------------------------------------
 # Graph RAG Nodes
-
-
-async def router_node(state: ChatState) -> ChatState:
-    """Decides if we need Graph context based on the query."""
-    if "alice" in state.user_message.lower() or "who" in state.user_message.lower():
-        logger.info("  [Router] Graph search required. Routing to extraction.")
-        state.next_node = "extract_entities"
-    else:
-        logger.info("  [Router] General query. Routing to LLM directly.")
-        state.next_node = "llm_generation"
-    return state
+# ---------------------------------------------------------------------------
 
 
 async def extract_entities_node(state: ChatState) -> ChatState:
-    """Simulates an LLM structured output call to extract Cypher parameters."""
-    logger.info("  [Extractor] Extracting parameters for Cypher query...")
-    # Simulated entity extraction
-    if "alice" in state.user_message.lower():
-        state.extracted_entities["person_name"] = "Alice"
+    """Use the fast LLM to extract searchable entities from the user message."""
+    logger.info("  [Extractor] Extracting entities via LLM...")
+    try:
+        llm = get_layer1_llm()
+        prompt = ENTITY_EXTRACTION_PROMPT.format(user_message=state.user_message)
+        messages = [LLMMessage(role="user", content=prompt)]
+        raw = await llm.chat(messages)
+
+        # Strip markdown fences if the model wraps the JSON
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            # Remove ```json ... ``` wrapper
+            lines = cleaned.split("\n")
+            cleaned = "\n".join(line for line in lines if not line.strip().startswith("```"))
+
+        entities = json.loads(cleaned)
+        state.extracted_entities = entities
+        logger.info("  [Extractor] Found entities: %s", entities)
+    except (json.JSONDecodeError, Exception) as exc:
+        logger.warning("  [Extractor] Entity extraction failed: %s", exc)
+        state.extracted_entities = {"persons": [], "topics": [], "keywords": []}
+
     return state
 
 
-def make_graph_retrieval_node(db_graph) -> NodeFunc:
-    """
-    Dependency Injection pattern: Injects the FalkorDB connection into the node
-    while maintaining the strict `state -> state` signature expected by the Graph.
-    """
-
-    async def graph_retrieval_node(state: ChatState) -> ChatState:
-        person_name = state.extracted_entities.get("person_name")
-        if not person_name:
-            return state
-
-        logger.info(f"  [FalkorDB] Executing custom Cypher for: {person_name}")
-
-        cypher_query = """
-        MATCH (p:Person {name: $name})-[:KNOWS]->(friend:Person)
-        OPTIONAL MATCH (friend)-[:HAS_EXPERTISE]->(skill:Skill)
-        RETURN friend.name AS friend_name, collect(skill.name) AS skills
-        """
-        params = {"name": person_name}
-
-        try:
-            # Execute async query against FalkorDB
-            result = await db_graph.query(cypher_query, params=params)
-
-            # Format results for the LLM context window
-            for row in result.result_set:
-                friend_name = row[0]
-                skills = ", ".join(row[1]) if row[1] else "no specific skills"
-                context_str = (
-                    f"{person_name} knows {friend_name}, who is skilled in {skills}."
-                )
-                state.graph_context.append(context_str)
-                logger.info(f"  [Context Found] {context_str}")
-
-        except Exception as e:
-            logger.error(f"  [FalkorDB Error] Failed to execute Cypher: {e}")
-
+async def graph_retrieval_node(state: ChatState) -> ChatState:
+    """Query FalkorDB using extracted entities and walk the graph for context."""
+    graph = falkordb_client.get_graph()
+    if graph is None:
+        logger.warning("  [FalkorDB] Not connected – skipping graph retrieval.")
         return state
 
-    return graph_retrieval_node
+    entities = state.extracted_entities
+    persons = entities.get("persons", [])
+    topics = entities.get("topics", [])
+    keywords = entities.get("keywords", [])
+
+    all_search_terms = persons + topics + keywords
+
+    if not all_search_terms:
+        logger.info("  [FalkorDB] No entities to search for.")
+        return state
+
+    # Search for matching nodes by name/title across all node types,
+    # then walk one hop of relationships to gather context.
+    for term in all_search_terms[:5]:  # Limit to 5 terms to avoid overload
+        try:
+            # Case-insensitive search across any node with a 'name' property
+            cypher = """
+            MATCH (n)
+            WHERE toLower(n.name) CONTAINS toLower($term)
+            OPTIONAL MATCH (n)-[r]->(related)
+            RETURN
+                labels(n)[0] AS node_type,
+                n.name AS node_name,
+                type(r) AS rel_type,
+                labels(related)[0] AS related_type,
+                related.name AS related_name
+            LIMIT 10
+            """
+            result = await graph.query(cypher, params={"term": term})
+
+            for row in result.result_set:
+                node_type = row[0] or "Node"
+                node_name = row[1] or "unknown"
+                rel_type = row[2]
+                related_type = row[3]
+                related_name = row[4]
+
+                if rel_type and related_name:
+                    ctx = (
+                        f"{node_type} '{node_name}' "
+                        f"--[{rel_type}]--> "
+                        f"{related_type} '{related_name}'"
+                    )
+                else:
+                    ctx = f"{node_type} '{node_name}' exists in the knowledge graph."
+
+                if ctx not in state.graph_context:
+                    state.graph_context.append(ctx)
+                    logger.info("  [Context Found] %s", ctx)
+
+        except Exception as exc:
+            logger.error("  [FalkorDB Error] Query failed for '%s': %s", term, exc)
+
+    return state
 
 
 async def llm_generation_node(state: ChatState) -> ChatState:
-    """Constructs the final response, injecting graph context if available."""
-    logger.info("  [LLM] Generating final response...")
+    """Generate the final response using the fine-tuned model with graph context."""
+    logger.info("  [LLM] Generating Layer 2 response...")
 
+    llm = get_layer2_llm()
+
+    # Build system prompt with or without graph context
     if state.graph_context:
-        context_block = "\n".join(state.graph_context)
-        state.llm_response = (
-            f"Based on the Knowledge Graph context provided:\n"
-            f"{context_block}\n\n"
-            f"(Simulated LLM Synthesis: I can see that Alice has connections with valuable skills!)"
+        context_block = "\n".join(f"- {c}" for c in state.graph_context)
+        system_prompt = LAYER2_CONTEXT_TEMPLATE.format(
+            base_prompt=LAYER2_BASE_PROMPT,
+            graph_context=context_block,
         )
     else:
-        state.llm_response = (
-            "I am a helpful AI. I don't need the graph for this question!"
-        )
+        system_prompt = LAYER2_BASE_PROMPT
 
+    # Include conversation history if available
+    messages = list(state.conversation_history)
+    messages.append(LLMMessage(role="user", content=state.user_message))
+
+    state.llm_response = await llm.chat(messages, system_prompt)
     state.should_stop = True
     return state
 
 
-# Execution & Database Setup
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 
-async def seed_database(kg_graph):
-    """Utility to safely seed the DB so the example runs perfectly."""
-    try:
-        await kg_graph.query(
-            """
-        MERGE (a:Person {name: 'Alice'})
-        MERGE (b:Person {name: 'Bob'})
-        MERGE (c:Person {name: 'Charlie'})
-        MERGE (s1:Skill {name: 'Python'})
-        MERGE (s2:Skill {name: 'Graph Databases'})
-        
-        MERGE (a)-[:KNOWS]->(b)
-        MERGE (a)-[:KNOWS]->(c)
-        MERGE (b)-[:HAS_EXPERTISE]->(s1)
-        MERGE (b)-[:HAS_EXPERTISE]->(s2)
-        """
-        )
-    except Exception as e:
-        logger.error(f"Failed to seed data. Is Docker running? Error: {e}")
-
-
-async def main():
-    # Setup FalkorDB Async Connection Pool
-    pool = BlockingConnectionPool(host="localhost", port=6379, decode_responses=True)
-    falkor_db = FalkorDB(connection_pool=pool)
-    kg_graph = falkor_db.select_graph("rag_graph")
-
-    await seed_database(kg_graph)
-
-    # Initialize Workflow
+def _build_workflow() -> StateGraph:
+    """Build and return the Graph RAG workflow."""
     workflow = StateGraph()
-    workflow.add_node("router", router_node)
     workflow.add_node("extract_entities", extract_entities_node)
-
-    # Inject DB here using the closure function
-    workflow.add_node("graph_retrieval", make_graph_retrieval_node(kg_graph))
+    workflow.add_node("graph_retrieval", graph_retrieval_node)
     workflow.add_node("llm_generation", llm_generation_node)
 
-    # Wire edges
-    workflow.add_conditional_edge("router", lambda s: s.next_node)
     workflow.add_edge("extract_entities", "graph_retrieval")
     workflow.add_edge("graph_retrieval", "llm_generation")
 
-    # Run Scenario
+    return workflow
+
+
+async def run_graph_rag(
+    user_message: str,
+    conversation_history: list[LLMMessage] | None = None,
+) -> str:
+    """Run the Graph RAG pipeline and return the final LLM response string.
+
+    This is the non-streaming variant, used by the cache layer.
+    """
     state = ChatState(
-        session_id="rag_session_01",
-        user_message="Who does Alice know and what are their skills?",
+        session_id="api",
+        user_message=user_message,
+        conversation_history=conversation_history or [],
     )
 
-    final_state = await workflow.execute(start_node="router", state=state)
-    print(f"\nFinal LLM Output:\n{final_state.llm_response}")
-
-    # Cleanup Database Pool
-    await pool.aclose()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
-
-# ---------------------------------------------------------------------------
-# Public API used by chat handlers and context __init__
-# ---------------------------------------------------------------------------
-
-
-async def run_graph_rag(user_message: str) -> str:
-    """Run the Graph RAG pipeline on a user message and return the LLM response."""
-    state = ChatState(session_id="api", user_message=user_message)
-
-    workflow = StateGraph()
-    workflow.add_node("router", router_node)
-    workflow.add_node("extract_entities", extract_entities_node)
-    workflow.add_node("llm_generation", llm_generation_node)
-
-    workflow.add_conditional_edge("router", lambda s: s.next_node)
-    workflow.add_edge("extract_entities", "llm_generation")
-
-    final_state = await workflow.execute(start_node="router", state=state)
+    workflow = _build_workflow()
+    final_state = await workflow.execute(start_node="extract_entities", state=state)
     return final_state.llm_response or ""
+
+
+async def run_graph_rag_stream(
+    user_message: str,
+    conversation_history: list[LLMMessage] | None = None,
+) -> AsyncGenerator[str, None]:
+    """Run entity extraction + graph retrieval, then stream the LLM response.
+
+    Yields text chunks from the fine-tuned model.
+    """
+    history = conversation_history or []
+
+    # Step 1 & 2: Extract entities and retrieve graph context
+    state = ChatState(
+        session_id="api",
+        user_message=user_message,
+        conversation_history=history,
+    )
+
+    # Run extraction + retrieval (non-streaming part)
+    state = await extract_entities_node(state)
+    state = await graph_retrieval_node(state)
+
+    # Step 3: Stream the LLM generation
+    llm = get_layer2_llm()
+
+    if state.graph_context:
+        context_block = "\n".join(f"- {c}" for c in state.graph_context)
+        system_prompt = LAYER2_CONTEXT_TEMPLATE.format(
+            base_prompt=LAYER2_BASE_PROMPT,
+            graph_context=context_block,
+        )
+    else:
+        system_prompt = LAYER2_BASE_PROMPT
+
+    messages = list(history)
+    messages.append(LLMMessage(role="user", content=user_message))
+
+    async for chunk in llm.chat_stream(messages, system_prompt):
+        yield chunk
+
+
+# ---------------------------------------------------------------------------
+# Context Provider (for REST endpoints that use the provider interface)
+# ---------------------------------------------------------------------------
 
 
 class GraphRAGContextProvider(BaseContextProvider):
