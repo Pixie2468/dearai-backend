@@ -1,0 +1,65 @@
+name: Build and Deploy Gateway to Cloud Run
+
+on:
+  push:
+    branches:
+      - main # Triggers deployment on merges/pushes to main
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1 # Change to your preferred GCP region
+  REPO_NAME: dear-ai-repo # Name of your Google Artifact Registry repository
+  SERVICE_NAME: gateway # Name of your Cloud Run service
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    # Required permissions for Workload Identity Federation
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 1. Authenticate to Google Cloud using Workload Identity Federation
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: '${{ secrets.GCP_WIF_PROVIDER }}' # e.g., projects/123/locations/global/workloadIdentityPools/github/providers/my-repo
+          service_account: '${{ secrets.GCP_SERVICE_ACCOUNT }}' # e.g., my-service-account@my-project.iam.gserviceaccount.com
+
+      # 2. Configure Docker to authenticate with Google Artifact Registry
+      - name: Docker Auth
+        id: docker-auth
+        uses: 'docker/login-action@v3'
+        with:
+          username: 'oauth2accesstoken'
+          password: '${{ steps.auth.outputs.access_token }}'
+          registry: '${{ env.REGION }}-docker.pkg.dev'
+
+      # 3. Build and push the Docker image
+      - name: Build and Push Container
+        run: |
+          IMAGE_TAG=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          docker build -t $IMAGE_TAG .
+          docker push $IMAGE_TAG
+
+      # 4. Deploy to Cloud Run
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          # You map your required environment variables here.
+          # Secrets (like PASETO key) should be pulled from Google Secret Manager in a real prod environment, 
+          # but setting them via GitHub Secrets works for getting off the ground.
+          env_vars: |
+            ENV=production
+            BACKEND_WS=${{ secrets.PROD_BACKEND_WS }}
+            JWKS_URL=${{ secrets.PROD_JWKS_URL }}
+            PASETO_SYMMETRIC_KEY=${{ secrets.PROD_PASETO_KEY }}

@@ -1,0 +1,13 @@
+name: Deploy Go Gateway
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - "gateway"
+            - ".github/workflows/deploy-gateway.yml"
+
+jobs:
+    deploy: 
+        runs-on: ubuntu-latest
