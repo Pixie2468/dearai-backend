@@ -19,7 +19,16 @@ func NewProxy(target string) (*Proxy, error) {
 		return nil, err
 	}
 
-	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	backendURL := *targetURL
+	switch backendURL.Scheme {
+	case "ws":
+		backendURL.Scheme = "http"
+	case "wss":
+		backendURL.Scheme = "https"
+	}
+
+	proxy := httputil.NewSingleHostReverseProxy(&backendURL)
+	proxy.Director = nil
 
 	// 1. Inject a robust, production-ready Transport.
 	// This prevents infinite hangs if the backend fails.
@@ -37,22 +46,22 @@ func NewProxy(target string) (*Proxy, error) {
 		ResponseHeaderTimeout: 10 * time.Second, // Fails fast if backend hangs processing
 	}
 
-	// 2. Properly implement the Rewrite hook (Go 1.20+)
+	// 2. Properly implement the Rewrite hook
 	proxy.Rewrite = func(pr *httputil.ProxyRequest) {
 		// SetURL routes the request scheme/host/path correctly to the backend
-		pr.SetURL(targetURL)
+		pr.SetURL(&backendURL)
 
 		// SetXForwarded automatically sets X-Forwarded-For, X-Forwarded-Host, and X-Forwarded-Proto
 		pr.SetXForwarded()
 
 		// Mutate the OUTGOING request (pr.Out) so the backend sees the expected Host
-		pr.Out.Host = targetURL.Host
+		pr.Out.Host = backendURL.Host
 	}
 
 	// 3. Graceful Error Handling
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		// In production, consider rate-limiting this log or using structured logging (slog)
-		log.Printf("[Proxy Error] failed to reach backend %s: %v", targetURL.Host, err)
+		log.Printf("[Proxy Error] failed to reach backend %s: %v", backendURL.Host, err)
 		http.Error(w, "backend service unavailable", http.StatusBadGateway)
 	}
 

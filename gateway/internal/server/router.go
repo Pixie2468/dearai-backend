@@ -19,13 +19,11 @@ func NewRouter(
 	mux := http.NewServeMux()
 
 	// 1. Initialize the middleware with our dependencies and wrap the proxy handler.
-	// middleware.RequireAuth expects concrete types and the handler to wrap.
-	// Use type assertions to convert the provided interfaces to the concrete types.
-	authHandler := middleware.RequireAuth(verifier.(*auth.OIDCVerifier), pasetoManager.(*auth.PasetoManager), p)
+	authHandler := middleware.RequireAuth(verifier, pasetoManager, p)
 
-	// 2. Register the wrapped proxy handler.
-	// Note: We use a trailing slash "/chat/" so it acts as a prefix router,
-	// capturing "/chat", "/chat/", and "/chat/subpath"
+	// 2. Register the wrapped proxy handler for both exact and subtree paths.
+	// This avoids redirecting websocket upgrades from /chat -> /chat/.
+	mux.Handle("/chat", authHandler)
 	mux.Handle("/chat/", authHandler)
 
 	// 3. Register public routes (Using Go 1.22+ strict method routing)

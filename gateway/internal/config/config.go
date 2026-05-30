@@ -37,7 +37,8 @@ func (c Config) String() string {
 		redacted.PasetoSymmetricKey = "[REDACTED]"
 	}
 	// Return the struct representation with masked secrets
-	return fmt.Sprintf("%+v", redacted)
+	type safeConfig Config
+	return fmt.Sprintf("%+v", safeConfig(redacted))
 }
 
 // Load reads environment variables and returns a validated Config.
@@ -65,13 +66,13 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid ENV '%s': must be development, staging, or production", c.Environment)
 	}
 
-	// 2. WebSocket URL Validation
+	// 2. Backend URL Validation
 	wsURL, err := url.Parse(c.BackendWS)
 	if err != nil {
 		return fmt.Errorf("invalid BACKEND_WS url: %w", err)
 	}
-	if wsURL.Scheme != "ws" && wsURL.Scheme != "wss" {
-		return fmt.Errorf("BACKEND_WS scheme must be 'ws' or 'wss', got '%s'", wsURL.Scheme)
+	if wsURL.Scheme != "ws" && wsURL.Scheme != "wss" && wsURL.Scheme != "http" && wsURL.Scheme != "https" {
+		return fmt.Errorf("BACKEND_WS scheme must be 'ws', 'wss', 'http', or 'https', got '%s'", wsURL.Scheme)
 	}
 	if wsURL.Host == "" {
 		return fmt.Errorf("BACKEND_WS must include a valid host (e.g., ws://localhost:8080)")

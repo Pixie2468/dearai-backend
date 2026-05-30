@@ -10,8 +10,8 @@ import (
 )
 
 func RequireAuth(
-	oidcVerifier *auth.OIDCVerifier, // <-- Updated parameter here
-	pasetoManager *auth.PasetoManager,
+	oidcVerifier auth.TokenVerifier,
+	pasetoManager auth.TokenManager,
 	next http.Handler,
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
