@@ -1,48 +1,150 @@
-from contextlib import asynccontextmanager
+"""FastAPI entrypoint for Dear AI WebSocket chat."""
 
-from fastapi import FastAPI
+import asyncio
+import json
+import logging
+from dataclasses import dataclass
+from typing import Optional
 
-# Import models so that Base.metadata is fully populated (required for
-# Alembic autogenerate and any create_all usage during development).
-# import app.models  # noqa: F401
-from ai_service.app.api.v1.auth import router as auth_router
-from ai_service.app.api.v1.chat import router as chat_router
-from ai_service.app.api.v1.conversations import router as conversations_router
-from ai_service.app.api.v1.users import router as users_router
-from ai_service.app.core import falkordb as falkordb_client
-from ai_service.app.core import redis as redis_client
-from ai_service.app.core.config import settings
-from ai_service.app.core.database import engine
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
+from app.auth.dependencies import verify_websocket_handshake
+from app.services.context.graphrag import DearAIGraphService
+from app.services.llm.generate_output import stream_response
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
-    await redis_client.connect()
-    await falkordb_client.connect()
-    yield
-    # Shutdown – dispose of the async engine's connection pool cleanly.
-    await falkordb_client.close()
-    await redis_client.close()
-    await engine.dispose()
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="Dear AI")
 
 
-app = FastAPI(
-    title=settings.app_name,
-    description="Mental health companion chat API with voice support",
-    version="0.1.0",
-    lifespan=lifespan,
-)
+@dataclass
+class ConnectionState:
+    """Tracks the active task and request id for a socket."""
 
-# Include routers
-app.include_router(auth_router, prefix="/auth", tags=["Auth"])
-app.include_router(users_router, prefix="/users", tags=["Users"])
-app.include_router(
-    conversations_router, prefix="/conversations", tags=["Conversations"]
-)
-app.include_router(chat_router, prefix="/chat", tags=["Chat"])
+    active_task: Optional[asyncio.Task] = None
+    request_id: int = 0
 
 
 @app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
+async def health() -> dict:
+    """Simple liveness check."""
+    return {"status": "ok"}
+
+
+async def _cancel_active(state: ConnectionState) -> None:
+    """Cancel any in-flight task and wait for cleanup."""
+    if state.active_task and not state.active_task.done():
+        state.active_task.cancel()
+        try:
+            await state.active_task
+        except asyncio.CancelledError:
+            return
+        except Exception as exc:
+            logger.warning("Active task cleanup failed: %s", exc)
+
+
+async def _safe_send_json(
+    websocket: WebSocket, state: ConnectionState, request_id: int, payload: dict
+) -> None:
+    """Send JSON only when this request id is still active."""
+    if request_id != state.request_id:
+        return
+    try:
+        await websocket.send_json(payload)
+    except Exception as exc:
+        logger.debug("WebSocket send failed: %s", exc)
+
+
+async def _handle_message(
+    websocket: WebSocket, state: ConnectionState, user_id: str, content: str, request_id: int
+) -> None:
+    """Run GraphRAG + LLM streaming for a single user message."""
+    try:
+        await _safe_send_json(
+            websocket,
+            state,
+            request_id,
+            {
+                "layer": "immediate",
+                "content": "Thanks for sharing - give me a moment to think.",
+                "final": False,
+            },
+        )
+
+        async with DearAIGraphService(user_id) as graph_service:
+            graph_context = await graph_service.execute_graph_pipeline(content)
+
+        async for chunk in stream_response(content, graph_context):
+            await _safe_send_json(
+                websocket,
+                state,
+                request_id,
+                {
+                    "layer": "rag",
+                    "content": chunk,
+                    "final": False,
+                },
+            )
+
+        await _safe_send_json(
+            websocket,
+            state,
+            request_id,
+            {
+                "layer": "rag",
+                "content": "",
+                "final": True,
+            },
+        )
+    except asyncio.CancelledError:
+        logger.info("Cancelled in-flight request %s", request_id)
+        raise
+    except Exception as exc:
+        logger.exception("Request %s failed: %s", request_id, exc)
+        await _safe_send_json(
+            websocket,
+            state,
+            request_id,
+            {
+                "layer": "rag",
+                "content": "Something went wrong while processing your request.",
+                "final": True,
+            },
+        )
+
+
+@app.websocket("/chat/ws")
+async def chat_ws(websocket: WebSocket) -> None:
+    """WebSocket chat handler with cancellation on new message."""
+    user_id = await verify_websocket_handshake(websocket)
+    if user_id is None:
+        return
+
+    await websocket.accept()
+
+    state = ConnectionState()
+
+    try:
+        while True:
+            raw_message = await websocket.receive_text()
+            try:
+                payload = json.loads(raw_message)
+            except json.JSONDecodeError:
+                await websocket.send_json({"error": "invalid_json"})
+                continue
+
+            content = payload.get("content")
+            if not isinstance(content, str) or not content.strip():
+                await websocket.send_json({"error": "missing_content"})
+                continue
+
+            await _cancel_active(state)
+
+            state.request_id += 1
+            current_id = state.request_id
+
+            state.active_task = asyncio.create_task(
+                _handle_message(websocket, state, user_id, content.strip(), current_id)
+            )
+    except WebSocketDisconnect:
+        await _cancel_active(state)
