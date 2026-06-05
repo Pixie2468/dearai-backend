@@ -1,5 +1,6 @@
 """PASETO token verification for internal gateway auth."""
 
+import datetime
 import json
 import os
 
@@ -44,6 +45,14 @@ def verify_internal_token(token_string: str) -> str | None:
 
         if payload.get("aud") != EXPECTED_AUDIENCE:
             raise ValueError("Invalid audience")
+
+        # Enforce expiry — pyseto does NOT validate exp automatically.
+        exp_raw = payload.get("exp")
+        if not exp_raw:
+            raise ValueError("Missing exp claim")
+        exp = datetime.datetime.fromisoformat(exp_raw.replace("Z", "+00:00"))
+        if datetime.datetime.now(datetime.timezone.utc) > exp:
+            raise ValueError("Token expired")
 
         user_id = payload.get("sub")
         if not user_id:
