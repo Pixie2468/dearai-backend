@@ -1,201 +1,188 @@
-# Dear AI – Mental Health Companion Backend
+# Dear AI — Backend Monorepo
 
-A conversational AI backend for a mental health companion, built with **FastAPI**, **Vertex AI (Gemini)**, and a **Graph RAG** pipeline backed by FalkorDB.
+A mental health companion backend consisting of two cooperating services:
+
+| Service | Language | Role |
+|---------|----------|------|
+| [`gateway/`](./gateway/) | Go | Public-facing API gateway — OIDC auth, PASETO minting, WebSocket reverse proxy |
+| [`ai_service/`](./ai_service/) | Python 3.11 | Internal AI service — GraphRAG pipeline, LLM streaming, conversation state |
+
+---
 
 ## Architecture
 
-The system uses a **two-layer concurrent response** model over WebSocket:
-
-```md
-User Message
-     │
-     ├──► Layer 1 – Immediate  (gemini-2.0-flash-lite, <2 s)
-     │         └──► { "layer": "immediate", "content": "...", "final": false }
-     │
-     └──► Layer 2 – Graph RAG  (retrieval + reasoning)
-               └──► { "layer": "rag", "content": "...", "final": true }
+```
+                         ┌─────────────────────────────────┐
+Client (browser / app)   │  Go Gateway  :8080               │
+  ──[OIDC JWT Bearer]──► │  • Verify JWT (OIDC discovery)   │
+                         │  • Mint PASETO (15 s, internal)  │
+                         │  • Strip Authorization header     │
+                         │  • Add X-Internal-Auth header    │
+                         │  • Reverse-proxy /chat  ──────►  │──► AI Service :8000
+                         └─────────────────────────────────┘
+                                                              │  • Verify PASETO
+                                                              │  • Upgrade to WebSocket
+                                                              │  • GraphRAG (FalkorDB)
+                                                              │  • Stream LLM response
+                                                              └──► FalkorDB :6379
 ```
 
-| Layer | Model | Purpose | Cached |
-|-------|-------|---------|--------|
-| Immediate | `gemini-2.0-flash-lite` | Fast empathetic acknowledgement | No |
-| Graph RAG | Full pipeline via FalkorDB | Retrieval-augmented response | Yes (Redis) |
+### Request lifecycle
 
-Both layers run **concurrently** via `asyncio.create_task` and support **cancellation** when the user sends a new message or disconnects.
+1. Client connects to `ws://gateway:8080/chat` with an OIDC `Bearer` JWT.
+2. Gateway verifies the JWT (signature, `email_verified`, `sub`/`email` claims).
+3. Gateway mints a short-lived PASETO V4-local token carrying the user's immutable OIDC `sub`.
+4. Gateway strips `Authorization` and injects `X-Internal-Auth: <paseto>`, then proxies.
+5. AI Service verifies the PASETO (`iss`, `aud`, `sub`, `exp`) and extracts `user_id`.
+6. AI Service accepts the WebSocket, then for every message:
+   - Cancels any in-flight task (interrupt support).
+   - Runs `DearAIGraphService` — ingests the message into the user's personal FalkorDB graph, retrieves context.
+   - Streams the LLM response chunk-by-chunk back to the client.
 
-### Caching Strategy
+### WebSocket message format
 
-Graph RAG responses are cached in Redis to avoid redundant pipeline executions:
-
-- **Key**: `rag_cache:<sha256(user_message)>`
-- **TTL**: Configurable via `RAG_CACHE_TTL_SECONDS` (default: 1 hour)
-- **Miss**: Runs `run_graph_rag()` → stores result in Redis
-- **Hit**: Returns cached response immediately
-- **Failure**: Redis unavailability is non-fatal — falls through to live RAG
-
-The cache wraps the RAG pipeline externally; no internal RAG logic is modified.
-
-## Project Structure
-
-```md
-app/
-├── api/v1/              # FastAPI route handlers
-│   ├── auth.py          # Authentication endpoints
-│   ├── chat.py          # Text, voice, and WebSocket chat
-│   ├── conversations.py # Conversation CRUD
-│   └── users.py         # User management
-├── core/
-│   ├── config.py        # Pydantic settings (env-driven)
-│   ├── database.py      # Async SQLAlchemy engine + session
-│   ├── dependencies.py  # FastAPI dependency injection
-│   └── redis.py         # Async Redis client singleton
-├── models/              # SQLAlchemy ORM models
-├── repositories/        # Data access layer
-├── services/
-│   ├── auth/            # Authentication & JWT
-│   ├── cache/
-│   │   └── rag_cache.py # Redis caching wrapper for Graph RAG
-│   ├── chat/            # Chat orchestration + handlers
-│   ├── context/
-│   │   ├── graph_rag.py # Graph RAG pipeline (FalkorDB)
-│   │   └── summary.py   # Context summarisation
-│   ├── emotion/         # Hume.ai emotion detection
-│   ├── guardrails/      # Input/output safety filters
-│   ├── llm/             # LLM abstraction (Vertex AI)
-│   ├── speech/          # STT & TTS providers
-│   └── users/           # User service layer
-└── migrations/          # Alembic migration scripts
-```
-
-## Prerequisites
-
-- **Python** ≥ 3.11
-- **Docker** & **Docker Compose** (for Postgres, Redis, FalkorDB)
-- **Google Cloud** project with Vertex AI API enabled
-- **Hume.ai** API key for STT, TTS, and emotion detection
-
-## Getting Started
-
-### 1. Clone & install
-
-```bash
-git clone <repo-url> && cd dearai-backend
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# Linux / macOS
-source .venv/bin/activate
-
-pip install -e ".[dev]"
-```
-
-### 2. Configure environment
-
-```bash
-cp .env.example .env
-# Edit .env with your own keys and connection strings
-```
-
-Key variables:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | Async PostgreSQL connection string | `postgresql+asyncpg://postgres:postgres@localhost:5432/mental_health_companion` |
-| `REDIS_URL` | Redis for RAG caching | `redis://localhost:6380` |
-| `RAG_CACHE_TTL_SECONDS` | Cache lifetime in seconds | `3600` |
-| `VERTEX_PROJECT` | GCP project ID for Vertex AI | — |
-| `VERTEX_LOCATION` | GCP region | `us-central1` |
-| `LLM_MODEL` | Default Gemini model | `gemini-2.0-flash` |
-| `HUME_API_KEY` | Hume.ai API key (STT + TTS + emotion) | — |
-| `HUME_SECRET_KEY` | Hume.ai secret key | — |
-| `JWT_SECRET_KEY` | JWT signing secret | *change in production* |
-| `FALKOR_HOST` / `FALKOR_PORT` | FalkorDB connection | `localhost:6379` |
-
-### 3. Start infrastructure
-
-```bash
-docker compose up -d
-```
-
-This starts:
-
-| Service | Container | Host Port |
-|---------|-----------|-----------|
-| PostgreSQL (pgvector) | `dear-ai-postgres` | 5432 |
-| Redis (RAG cache) | `dear-ai-redis` | 6380 |
-| FalkorDB (graph DB) | `dear-ai-falkordb` | 6379 |
-
-### 4. Run database migrations
-
-```bash
-alembic upgrade head
-```
-
-### 5. Start the server
-
-```bash
-uvicorn app.main:app --reload
-```
-
-The API will be available at `http://localhost:8000`. OpenAPI docs at `/docs`.
-
-## WebSocket Protocol
-
-Connect to `ws://localhost:8000/chat/ws` and send JSON messages:
+**Client → Server**
 
 ```json
 { "content": "I've been feeling anxious lately" }
 ```
 
-The server responds with two messages per turn:
+**Server → Client** (two phases per message)
 
 ```json
-{ "layer": "immediate", "content": "I hear you...", "final": false }
+{ "layer": "immediate", "content": "Thanks for sharing — give me a moment to think.", "final": false }
+{ "layer": "rag",       "content": "<streamed LLM chunk>",                              "final": false }
+{ "layer": "rag",       "content": "",                                                   "final": true  }
 ```
 
-```json
-{ "layer": "rag", "content": "Based on what I know...", "final": true }
+Sending a new message while a response is in-flight **cancels** the active task immediately.
+
+---
+
+## Repository Layout
+
+```
+dearai-backend/
+├── gateway/          # Go API gateway
+│   ├── cmd/          # main.go entrypoint
+│   └── internal/
+│       ├── auth/     # OIDC verifier + PASETO manager
+│       ├── config/   # Env-driven config with validation
+│       ├── middleware/# RequireAuth middleware
+│       ├── proxy/    # WebSocket-aware reverse proxy
+│       ├── server/   # Router wiring
+│       └── utils/    # Token extraction, JSON helpers
+│
+├── ai_service/       # Python FastAPI AI backend
+│   └── app/
+│       ├── auth/     # PASETO verification (internal only)
+│       ├── schemas/  # FalkorDB graph schema
+│       ├── services/
+│       │   ├── context/  # GraphRAG orchestration
+│       │   ├── graph/    # FalkorDB ingest + retrieval
+│       │   ├── llm/      # Gemini streaming + prompt builder
+│       │   └── guardrails/ # (planned)
+│       └── utils/    # LLM + client setup
+│
+├── docker-compose.yml  # Infrastructure: FalkorDB
+└── .github/workflows/  # CI/CD
 ```
 
-Sending a new message while a previous response is still processing will **cancel** the in-flight tasks and start fresh.
+---
 
-## Development
+## Quick Start
 
-### Run tests
+### Prerequisites
+
+- **Docker** & **Docker Compose**
+- **Go** ≥ 1.22 (gateway local dev)
+- **Python** ≥ 3.11 + [uv](https://github.com/astral-sh/uv) (ai_service local dev)
+- An **OIDC provider** (e.g. Auth0, Google, Clerk) — gateway needs `ISSUER_URL` + `AUDIENCE_CLIENT_ID`
+- A **Gemini API key** or **Vertex AI** project (ai_service)
+
+### 1. Start infrastructure
 
 ```bash
-pytest
+docker compose up -d
 ```
 
-### Lint & format
+This starts FalkorDB (`:6379`) for the personal knowledge graph.
+
+### 2. Configure environment
 
 ```bash
-ruff check .
-ruff format .
+# Gateway
+cp gateway/.env.example gateway/.env
+
+# AI Service
+cp ai_service/.env.example ai_service/.env
 ```
 
-### Type checking
+Both services share the same `PASETO_SYMMETRIC_KEY` — generate one with:
 
 ```bash
-mypy app/
+openssl rand -hex 32
 ```
+
+### 3. Run the gateway
+
+```bash
+cd gateway
+go run ./cmd/main.go
+```
+
+### 4. Run the AI service
+
+```bash
+cd ai_service
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+### 5. Connect
+
+```bash
+# Example using websocat (needs a valid OIDC JWT)
+websocat -H "Authorization: Bearer <your-jwt>" ws://localhost:8080/chat
+```
+
+---
+
+## Shared Environment Variable
+
+| Variable | Used by | Description |
+|----------|---------|-------------|
+| `PASETO_SYMMETRIC_KEY` | Gateway + AI Service | 64-char hex string (32 bytes). **Must match exactly in both services.** |
+
+See [`gateway/README.md`](./gateway/README.md) and [`ai_service/README.md`](./ai_service/README.md) for full per-service variable references.
+
+---
+
+## Running Full Stack with Docker
+
+```bash
+# Build and start everything
+docker compose up --build
+
+# Gateway:    http://localhost:8080
+# AI Service: http://localhost:8000  (internal, accessed through gateway only)
+# FalkorDB:   localhost:6379
+```
+
+---
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|-----------|
-| Web framework | FastAPI |
-| LLM | Google Vertex AI (Gemini) |
-| Graph database | FalkorDB |
-| Relational database | PostgreSQL + pgvector |
-| Cache | Redis |
-| ORM | SQLAlchemy 2.0 (async) |
-| Migrations | Alembic |
-| Auth | JWT (python-jose) |
-| Speech | Hume.ai (STT + TTS) |
-| Emotion | Hume.ai |
-| Safety | Guardrails AI |
+| Layer | Technology |
+|-------|-----------|
+| Gateway | Go 1.26, `go-oidc/v3`, `go-paseto`, `net/http` std reverse proxy |
+| AI Service | Python 3.11, FastAPI, `pyseto`, `google-genai`, `graphrag-sdk` |
+| Knowledge Graph | FalkorDB (Redis-compatible graph DB) |
+| LLM | Google Gemini (via API key or Vertex AI) |
+| Auth (external) | OIDC — any compliant provider |
+| Auth (internal) | PASETO V4-local symmetric tokens |
+
+---
 
 ## License
 
-Private – all rights reserved.
+Private — all rights reserved.
