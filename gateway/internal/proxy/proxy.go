@@ -43,7 +43,9 @@ func NewProxy(target string) (*Proxy, error) {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		ResponseHeaderTimeout: 10 * time.Second, // Fails fast if backend hangs processing
+		// Note: ResponseHeaderTimeout is intentionally omitted. For WebSocket
+		// proxy flows the backend sends a 101 Switching Protocols; a hard
+		// deadline here would kill the upgrade on slow cold-starts.
 	}
 
 	// 2. Properly implement the Rewrite hook

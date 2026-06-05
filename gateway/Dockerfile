@@ -1,36 +1,40 @@
-# Stage 1: Build the Go binary
+# ────────────────────────────────────────────────────────────
+# Stage 1: Build
+# ────────────────────────────────────────────────────────────
 FROM golang:1.22-alpine AS builder
 
-# Set the working directory inside the container
 WORKDIR /app
 
-# Download Go modules (caches dependencies if mod/sum haven't changed)
+# Download dependencies first so this layer is cached when only
+# source files change.
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the rest of the source code
 COPY . .
 
-# Build the Go application statically
-# CGO_ENABLED=0 ensures the binary doesn't rely on system C libraries
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /gateway-binary ./cmd/main.go
+# Build a fully static binary.
+# -trimpath    → strip local file paths from stack traces (security + reproducibility)
+# -ldflags     → strip DWARF debug info and symbol table to shrink binary size
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build \
+      -trimpath \
+      -ldflags="-s -w" \
+      -o /gateway \
+      ./cmd/main.go
 
-# Stage 2: Create the minimal production image
-FROM alpine:3.19
+# ────────────────────────────────────────────────────────────
+# Stage 2: Run — scratch-based for minimal attack surface
+# ────────────────────────────────────────────────────────────
+FROM gcr.io/distroless/static-debian12:nonroot
 
-# Install CA certificates so the gateway can make secure HTTPS calls to the JWKS URL
-RUN apk --no-cache add ca-certificates
+# Copy CA certificates from the builder so HTTPS calls to the
+# OIDC discovery endpoint work at runtime.
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-WORKDIR /root/
+# Copy the compiled binary.
+COPY --from=builder /gateway /gateway
 
-# Copy the compiled binary from the builder stage
-COPY --from=builder /gateway-binary .
-
-# Ensure the binary is executable
-RUN chmod +x ./gateway-binary
-
-# Expose the default port
 EXPOSE 8080
 
-# Command to run the executable
-CMD ["./gateway-binary"]
+# Run as non-root (distroless nonroot image sets uid=65532 by default).
+ENTRYPOINT ["/gateway"]

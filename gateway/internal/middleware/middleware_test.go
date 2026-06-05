@@ -21,15 +21,17 @@ func (v tokenVerifierStub) Verify(ctx context.Context, tokenString string) (*aut
 }
 
 type tokenManagerStub struct {
-	token string
-	err   error
+	token      string
+	err        error
+	capturedID string // set to the userID passed to Generate
 }
 
-func (m tokenManagerStub) Generate(userID string, ttl time.Duration) (string, error) {
+func (m *tokenManagerStub) Generate(userID string, ttl time.Duration) (string, error) {
+	m.capturedID = userID
 	return m.token, m.err
 }
 
-func (m tokenManagerStub) Verify(tokenString string) (*auth.InternalClaims, error) {
+func (m *tokenManagerStub) Verify(tokenString string) (*auth.InternalClaims, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -37,7 +39,7 @@ func TestRequireAuthMissingToken(t *testing.T) {
 	called := false
 
 	verifier := tokenVerifierStub{}
-	manager := tokenManagerStub{}
+	manager := &tokenManagerStub{}
 	h := RequireAuth(verifier, manager, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 	}))
@@ -58,7 +60,7 @@ func TestRequireAuthMissingToken(t *testing.T) {
 func TestRequireAuthVerifierError(t *testing.T) {
 	called := false
 	verifier := tokenVerifierStub{err: errors.New("bad token")}
-	manager := tokenManagerStub{}
+	manager := &tokenManagerStub{}
 
 	h := RequireAuth(verifier, manager, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -80,8 +82,8 @@ func TestRequireAuthVerifierError(t *testing.T) {
 
 func TestRequireAuthTokenGenerationError(t *testing.T) {
 	called := false
-	verifier := tokenVerifierStub{claims: &auth.ExternalClaims{Email: "user@example.com"}}
-	manager := tokenManagerStub{err: errors.New("generate failed")}
+	verifier := tokenVerifierStub{claims: &auth.ExternalClaims{Subject: "oidc-sub-123", Email: "user@example.com"}}
+	manager := &tokenManagerStub{err: errors.New("generate failed")}
 
 	h := RequireAuth(verifier, manager, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -103,8 +105,8 @@ func TestRequireAuthTokenGenerationError(t *testing.T) {
 
 func TestRequireAuthSuccess(t *testing.T) {
 	called := false
-	verifier := tokenVerifierStub{claims: &auth.ExternalClaims{Email: "user@example.com"}}
-	manager := tokenManagerStub{token: "internal-token"}
+	verifier := tokenVerifierStub{claims: &auth.ExternalClaims{Subject: "oidc-sub-123", Email: "user@example.com"}}
+	manager := &tokenManagerStub{token: "internal-token"}
 
 	h := RequireAuth(verifier, manager, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -128,5 +130,29 @@ func TestRequireAuthSuccess(t *testing.T) {
 	}
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+// TestRequireAuthUsesSubjectAsUserID verifies the middleware forwards the
+// immutable OIDC 'sub' claim — NOT the mutable email — to the PASETO manager.
+func TestRequireAuthUsesSubjectAsUserID(t *testing.T) {
+	const oidcSub = "google-oauth2|987654321"
+	verifier := tokenVerifierStub{claims: &auth.ExternalClaims{
+		Subject: oidcSub,
+		Email:   "user@example.com",
+	}}
+	manager := &tokenManagerStub{token: "tok"}
+
+	h := RequireAuth(verifier, manager, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer valid")
+	h.ServeHTTP(rec, req)
+
+	if manager.capturedID != oidcSub {
+		t.Fatalf("expected PASETO to be generated with sub=%q, got %q", oidcSub, manager.capturedID)
 	}
 }
