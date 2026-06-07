@@ -24,11 +24,18 @@ services:
       dockerfile: Dockerfile
     container_name: dear-ai-ai-service
     restart: unless-stopped
-    # Not exposed to the host — only reachable through the gateway
     expose:
       - "8000"
     env_file:
       - ./ai_service/.env
+    # 1. Mount your local host's ADC file into the container securely (read-only)
+    volumes:
+      - /home/darsh/.config/gcloud/application_default_credentials.json:/tmp/keys/adc.json:ro,z
+    # 2. Tell the Google Cloud SDK exactly where to find it inside the container
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/tmp/keys/adc.json
+      - HF_HOME=/tmp/huggingface
+      - XDG_CACHE_HOME=/tmp
     depends_on:
       falkordb:
         condition: service_healthy

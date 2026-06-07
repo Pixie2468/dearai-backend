@@ -5,7 +5,7 @@ A mental health companion backend consisting of two cooperating services:
 | Service | Language | Role |
 |---------|----------|------|
 | [`gateway/`](./gateway/) | Go | Public-facing API gateway — OIDC auth, PASETO minting, WebSocket reverse proxy |
-| [`ai_service/`](./ai_service/) | Python 3.11 | Internal AI service — GraphRAG pipeline, LLM streaming, conversation state |
+| [`ai_service/`](./ai_service/) | Python 3.14 | Internal AI service — GraphRAG pipeline, LLM streaming, conversation state |
 
 ---
 
@@ -84,7 +84,7 @@ dearai-backend/
 │       │   └── guardrails/ # (planned)
 │       └── utils/    # LLM + client setup
 │
-├── docker-compose.yml  # Infrastructure: FalkorDB
+├── docker-compose.yml  # Full stack: Gateway + AI Service + FalkorDB
 └── .github/workflows/  # CI/CD
 ```
 
@@ -95,9 +95,9 @@ dearai-backend/
 ### Prerequisites
 
 - **Docker** & **Docker Compose**
-- **Go** ≥ 1.22 (gateway local dev)
-- **Python** ≥ 3.11 + [uv](https://github.com/astral-sh/uv) (ai_service local dev)
-- An **OIDC provider** (e.g. Auth0, Google, Clerk) — gateway needs `ISSUER_URL` + `AUDIENCE_CLIENT_ID`
+- **Go** ≥ 1.26 (gateway local dev)
+- **Python** ≥ 3.14 + [uv](https://github.com/astral-sh/uv) (ai_service local dev)
+- An **OIDC provider** (e.g. Firebase Auth, Auth0, Clerk) — gateway needs `OIDC_ISSUER` + `OIDC_CLIENT_ID`
 - A **Gemini API key** or **Vertex AI** project (ai_service)
 
 ### 1. Start infrastructure
@@ -160,13 +160,19 @@ See [`gateway/README.md`](./gateway/README.md) and [`ai_service/README.md`](./ai
 ## Running Full Stack with Docker
 
 ```bash
-# Build and start everything
-docker compose up --build
+# Build and start everything (gateway + ai_service + falkordb)
+docker compose up --build -d
 
-# Gateway:    http://localhost:8080
-# AI Service: http://localhost:8000  (internal, accessed through gateway only)
-# FalkorDB:   localhost:6379
+# Verify all three containers are healthy
+docker compose ps
+
+# Gateway:    http://localhost:8080   (public — only externally exposed service)
+# AI Service: internal only           (reachable via gateway reverse proxy)
+# FalkorDB:   localhost:6379          (exposed for local dev tooling only)
 ```
+
+> **Note:** The AI service is **not** port-mapped to the host. It is only reachable
+> through the gateway's reverse proxy on the internal Docker network.
 
 ---
 
@@ -175,7 +181,7 @@ docker compose up --build
 | Layer | Technology |
 |-------|-----------|
 | Gateway | Go 1.26, `go-oidc/v3`, `go-paseto`, `net/http` std reverse proxy |
-| AI Service | Python 3.11, FastAPI, `pyseto`, `google-genai`, `graphrag-sdk` |
+| AI Service | Python 3.14, FastAPI, `pyseto`, `google-genai`, `graphrag-sdk` |
 | Knowledge Graph | FalkorDB (Redis-compatible graph DB) |
 | LLM | Google Gemini (via API key or Vertex AI) |
 | Auth (external) | OIDC — any compliant provider |
