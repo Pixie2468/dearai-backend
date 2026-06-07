@@ -7,10 +7,10 @@ import (
 
 func baseConfig() *Config {
 	return &Config{
-		Environment:      "development",
-		BackendWS:        "http://localhost:8080",
-		IssuerURL:        "https://issuer.example.com",
-		AudienceClientID: "audience",
+		Environment:        "development",
+		BackendWS:          "http://localhost:8080",
+		OIDC_ISSUER:        "https://issuer.example.com",
+		OIDC_CLIENT_ID:     "audience",
 		PasetoSymmetricKey: "dummy",
 	}
 }
@@ -44,7 +44,7 @@ func TestValidateBackendHost(t *testing.T) {
 
 func TestValidateIssuerURL(t *testing.T) {
 	cfg := baseConfig()
-	cfg.IssuerURL = "not-a-url"
+	cfg.OIDC_ISSUER = "not-a-url"
 
 	if err := cfg.Validate(); err == nil {
 		t.Fatalf("expected error for invalid issuer URL")

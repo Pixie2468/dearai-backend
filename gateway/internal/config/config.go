@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
 )
 
@@ -16,8 +17,8 @@ type Config struct {
 
 	BackendWS string `envconfig:"BACKEND_WS" required:"true"`
 
-	IssuerURL        string `envconfig:"ISSUER_URL" required:"true"`
-	AudienceClientID string `envconfig:"AUDIENCE_CLIENT_ID" required:"true"`
+	OIDC_ISSUER    string `envconfig:"OIDC_ISSUER" required:"true"`
+	OIDC_CLIENT_ID string `envconfig:"OIDC_CLIENT_ID" required:"true"`
 
 	// Sensitive Data
 	PasetoSymmetricKey string `envconfig:"PASETO_SYMMETRIC_KEY" required:"true"`
@@ -43,6 +44,11 @@ func (c Config) String() string {
 
 // Load reads environment variables and returns a validated Config.
 func Load() (*Config, error) {
+	// Load .env file if it exists. Ignore the error — in production
+	// (e.g., Docker, k8s) environment variables are injected directly
+	// and no .env file will be present.
+	_ = godotenv.Load()
+
 	var cfg Config
 
 	if err := envconfig.Process("", &cfg); err != nil {
@@ -79,7 +85,7 @@ func (c *Config) Validate() error {
 	}
 
 	// 3. OIDC Issuer Validation
-	if _, err := url.ParseRequestURI(c.IssuerURL); err != nil {
+	if _, err := url.ParseRequestURI(c.OIDC_ISSUER); err != nil {
 		return fmt.Errorf("invalid ISSUER_URL format: %w", err)
 	}
 

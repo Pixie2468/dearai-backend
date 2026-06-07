@@ -12,6 +12,7 @@ require (
 require (
 	aidanwoods.dev/go-result v0.3.1 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect

@@ -76,7 +76,7 @@ func main() {
 func initAuth(ctx context.Context, cfg *config.Config) (auth.TokenVerifier, auth.TokenManager) {
 
 	// Ensure the OIDC discovery doesn't hang forever
-	oidcVerifier, err := auth.NewOIDCVerifier(ctx, cfg.IssuerURL, cfg.AudienceClientID)
+	oidcVerifier, err := auth.NewOIDCVerifier(ctx, cfg.OIDC_ISSUER, cfg.OIDC_CLIENT_ID)
 	if err != nil {
 		log.Fatalf("Failed to initialize OIDC verifier (is the network up?): %v", err)
 	}

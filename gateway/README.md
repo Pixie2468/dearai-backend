@@ -50,8 +50,8 @@ All configuration is read from environment variables at startup. The service wil
 | `ADDR` | no | `:8080` | TCP listen address |
 | `ENV` | no | `development` | `development`, `staging`, or `production` |
 | `BACKEND_WS` | **yes** | — | AI service URL — accepts `ws://`, `wss://`, `http://`, `https://` |
-| `ISSUER_URL` | **yes** | — | OIDC issuer URL (must be a valid HTTPS URL) |
-| `AUDIENCE_CLIENT_ID` | **yes** | — | OIDC audience / client ID |
+| `OIDC_ISSUER` | **yes** | — | OIDC issuer URL (must be a valid HTTPS URL) |
+| `OIDC_CLIENT_ID` | **yes** | — | OIDC audience / client ID |
 | `PASETO_SYMMETRIC_KEY` | **yes** | — | 64-char hex string (32 raw bytes). Must match `ai_service`. |
 | `READ_TIMEOUT` | no | `30s` | HTTP server read timeout |
 | `WRITE_TIMEOUT` | no | `30s` | HTTP server write timeout |
@@ -68,8 +68,8 @@ ENV=development
 
 BACKEND_WS=ws://ai_service:8000
 
-ISSUER_URL=https://your-oidc-provider.example.com/
-AUDIENCE_CLIENT_ID=your-client-id
+OIDC_ISSUER=https://your-oidc-provider.example.com/
+OIDC_CLIENT_ID=your-client-id
 
 PASETO_SYMMETRIC_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ```
