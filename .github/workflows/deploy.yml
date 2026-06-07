@@ -1,4 +1,4 @@
-name: Deploy
+name: Deploy to GCP
 
 on:
   push:
@@ -7,16 +7,15 @@ on:
 
 permissions:
   contents: read
-  packages: write   # needed to push to GHCR
+  id-token: write   # CRITICAL: Required for Google Cloud Workload Identity Federation
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository_owner }}/dearai
+  REGION: us-central1
+  GAR_REPO: dearai-repo
+  # The full image path will be built dynamically using the GCP_PROJECT_ID secret
 
 jobs:
-  # ──────────────────────────────────────────────
   # 1. Lint & test the Go gateway
-  # ──────────────────────────────────────────────
   test-gateway:
     name: Gateway — Test
     runs-on: ubuntu-latest
@@ -35,9 +34,7 @@ jobs:
       - name: Run tests
         run: go test ./... -race -count=1
 
-  # ──────────────────────────────────────────────
   # 2. Lint the Python AI service
-  # ──────────────────────────────────────────────
   lint-ai-service:
     name: AI Service — Lint
     runs-on: ubuntu-latest
@@ -50,7 +47,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v4
         with:
-          version: "0.5.21"
+          version: "0.11.14"
 
       - name: Install dev dependencies
         run: uv sync --frozen
@@ -61,25 +58,24 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check .
 
-  # ──────────────────────────────────────────────
-  # 3. Build & push gateway image
-  # ──────────────────────────────────────────────
+  # 3. Build & push gateway image to GAR
   build-gateway:
     name: Gateway — Build & Push
     runs-on: ubuntu-latest
     needs: [test-gateway]
     outputs:
       image: ${{ steps.meta.outputs.tags }}
-      digest: ${{ steps.push.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for GAR
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -88,7 +84,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-gateway
+          images: ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.GAR_REPO }}/gateway
           tags: |
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
@@ -104,25 +100,24 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ──────────────────────────────────────────────
-  # 4. Build & push AI service image
-  # ──────────────────────────────────────────────
+  # 4. Build & push AI service image to GAR
   build-ai-service:
     name: AI Service — Build & Push
     runs-on: ubuntu-latest
     needs: [lint-ai-service]
     outputs:
       image: ${{ steps.meta.outputs.tags }}
-      digest: ${{ steps.push.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for GAR
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -131,7 +126,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-ai-service
+          images: ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.GAR_REPO }}/ai-service
           tags: |
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
@@ -147,39 +142,57 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ──────────────────────────────────────────────
-  # 5. Deploy — SSH into server and update containers
-  # ──────────────────────────────────────────────
+  # 5. Deploy to Google Cloud Run
   deploy:
-    name: Deploy to Server
+    name: Deploy to Cloud Run
     runs-on: ubuntu-latest
     needs: [build-gateway, build-ai-service]
     environment: production
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.0
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            set -euo pipefail
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-            echo "==> Logging in to GHCR..."
-            echo "${{ secrets.GITHUB_TOKEN }}" | \
-              docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      # Deploy Python AI Service FIRST to generate its URL
+      - name: Deploy AI Service
+        id: deploy-ai
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: dear-ai-service
+          region: ${{ env.REGION }}
+          image: ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.GAR_REPO }}/ai-service:latest
+          env_vars: |
+            ENV=production
+            FALKORDB_HOST=${{ secrets.PROD_FALKORDB_HOST }}
+            FALKORDB_PORT=6379
+            VERTEX_MODEL_ID=${{ secrets.VERTEX_MODEL_ID }}
+            VERTEX_PROJECT=${{ secrets.GCP_PROJECT_ID }}
+            VERTEX_LOCATION=${{ env.REGION }}
+            GOOGLE_CLOUD_PROJECT=${{ secrets.GCP_PROJECT_ID }}
+            GOOGLE_CLOUD_LOCATION=${{ env.REGION }}
+            EMBEDDING_MODEL=text-embedding-004
+          secrets: |
+            PASETO_SYMMETRIC_KEY=PROD_PASETO_KEY:latest
+            FALKORDB_PASSWORD=PROD_FALKORDB_PASSWORD:latest
 
-            echo "==> Pulling latest images..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-gateway:latest
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-ai-service:latest
-
-            echo "==> Restarting services..."
-            cd ${{ secrets.DEPLOY_PATH }}
-            docker compose up -d --no-build gateway ai_service
-
-            echo "==> Pruning old images..."
-            docker image prune -f
-
-            echo "==> Deploy complete."
+      # Deploy Go Gateway, injecting the AI Service URL
+      - name: Deploy Go Gateway
+        id: deploy-gateway
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: dear-ai-gateway
+          region: ${{ env.REGION }}
+          image: ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.GAR_REPO }}/gateway:latest
+          env_vars: |
+            ENV=production
+            BACKEND_WS=${{ steps.deploy-ai.outputs.url }}
+            OIDC_ISSUER=https://securetoken.google.com/${{ secrets.GCP_PROJECT_ID }}
+            OIDC_CLIENT_ID=${{ secrets.GCP_PROJECT_ID }}
+            ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
+          secrets: |
+            PASETO_SYMMETRIC_KEY=PROD_PASETO_KEY:latest

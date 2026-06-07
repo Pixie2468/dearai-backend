@@ -50,3 +50,6 @@ logs/
 redis_data/
 postgres_data/
 falkor_data/
+
+# Frontend testing
+index.html
