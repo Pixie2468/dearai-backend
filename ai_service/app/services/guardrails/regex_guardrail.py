@@ -25,9 +25,7 @@ def check_query_safety(user_query: str) -> dict:
         re.IGNORECASE,
     )
 
-    pattern_toxicity = re.compile(
-        r"\b(hate speech word 1|hate speech word 2)\b", re.IGNORECASE
-    )
+    pattern_toxicity = re.compile(r"\b(hate speech word 1|hate speech word 2)\b", re.IGNORECASE)
 
     if pattern_injection.search(user_query):
         return {"is_safe": False, "reason": "prompt_injection_or_command_detected"}

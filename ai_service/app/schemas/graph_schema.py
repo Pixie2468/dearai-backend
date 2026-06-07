@@ -32,9 +32,7 @@ def create_graph_schema() -> GraphSchema:
     """Build and return the GraphSchema for the Dear AI knowledge graph."""
     return GraphSchema(
         entities=[
-            EntityType(
-                label=EntityLabel.USER, description="The human chatting with the bot"
-            ),
+            EntityType(label=EntityLabel.USER, description="The human chatting with the bot"),
             EntityType(
                 label=EntityLabel.MOOD,
                 description="The emotional state of the user (e.g., Happy, Anxious, Frustrated)",

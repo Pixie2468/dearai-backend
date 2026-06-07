@@ -4,7 +4,10 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from typing import Optional
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
@@ -21,7 +24,7 @@ app = FastAPI(title="Dear AI")
 class ConnectionState:
     """Tracks the active task and request id for a socket."""
 
-    active_task: Optional[asyncio.Task] = None
+    active_task: asyncio.Task | None = None
     request_id: int = 0
 
 
@@ -56,7 +59,11 @@ async def _safe_send_json(
 
 
 async def _handle_message(
-    websocket: WebSocket, state: ConnectionState, user_id: str, content: str, request_id: int
+    websocket: WebSocket,
+    state: ConnectionState,
+    user_id: str,
+    content: str,
+    request_id: int,
 ) -> None:
     """Run GraphRAG + LLM streaming for a single user message."""
     try:
@@ -72,7 +79,11 @@ async def _handle_message(
         )
 
         async with DearAIGraphService(user_id) as graph_service:
+            logger.info(f"[{request_id}] Querying graph database...")
             graph_context = await graph_service.execute_graph_pipeline(content)
+            logger.info(
+                f"[{request_id}] Graph context retrieved! Starting LLM stream..."
+            )
 
         async for chunk in stream_response(content, graph_context):
             await _safe_send_json(
@@ -113,7 +124,7 @@ async def _handle_message(
         )
 
 
-@app.websocket("/chat/ws")
+@app.websocket("/chat")
 async def chat_ws(websocket: WebSocket) -> None:
     """WebSocket chat handler with cancellation on new message."""
     user_id = await verify_websocket_handshake(websocket)

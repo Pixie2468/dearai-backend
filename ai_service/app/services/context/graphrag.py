@@ -35,6 +35,7 @@ class DearAIGraphService:
             connection=self.connection,
             llm=self.llm,
             embedder=self.embedder,
+            embedding_dimension=768,
             schema=create_graph_schema(),
         )
         await self.rag.__aenter__()

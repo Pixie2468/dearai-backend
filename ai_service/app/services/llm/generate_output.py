@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from google.genai import types
 
@@ -12,9 +12,7 @@ from app.utils.setup_client import get_client
 logger = logging.getLogger(__name__)
 
 
-async def stream_response(
-    user_query: str, graph_context: str
-) -> AsyncGenerator[str, None]:
+async def stream_response(user_query: str, graph_context: str) -> AsyncGenerator[str, None]:
     """Stream model output for a user query with optional context."""
     client, model = get_client()
 

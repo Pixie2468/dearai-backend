@@ -18,7 +18,7 @@ Internal FastAPI service that handles the WebSocket chat session. It sits **behi
 
 ## WebSocket Protocol
 
-**Endpoint:** `ws://<gateway>/chat/ws` (accessed through the gateway, not directly)
+**Endpoint:** `ws://<gateway>/chat` (accessed through the gateway, not directly)
 
 **Client → Service**
 
@@ -68,7 +68,8 @@ If the token is missing, expired, or has invalid claims, the WebSocket is closed
 Each user has their own named graph in FalkorDB: `graph_{user_id}`.
 
 For every message:
-1. **Ingest** — the raw message text is ingested into the graph as structured entities (mood, people, topics, sessions) via LiteLLM + the graph schema.
+
+1. **Ingest** — the raw message text is ingested into the graph as structured entities (mood, people, topics, sessions) via LiteLLM + the graph schema. 
 2. **Finalize** — the transaction is committed.
 3. **Retrieve** — relevant context is queried back from the graph.
 4. **Prompt** — the context is injected into the system prompt alongside the user message.
@@ -120,7 +121,7 @@ EMBEDDING_MODEL=text-embedding-004
 
 ## Project Structure
 
-```
+```md
 ai_service/
 └── app/
     ├── main.py              # FastAPI app, WebSocket handler, interrupt loop

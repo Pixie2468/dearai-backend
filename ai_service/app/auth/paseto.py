@@ -51,7 +51,7 @@ def verify_internal_token(token_string: str) -> str | None:
         if not exp_raw:
             raise ValueError("Missing exp claim")
         exp = datetime.datetime.fromisoformat(exp_raw.replace("Z", "+00:00"))
-        if datetime.datetime.now(datetime.timezone.utc) > exp:
+        if datetime.datetime.now(datetime.UTC) > exp:
             raise ValueError("Token expired")
 
         user_id = payload.get("sub")
