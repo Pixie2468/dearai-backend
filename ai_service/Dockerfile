@@ -1,7 +1,7 @@
 # ────────────────────────────────────────────────────────────
 # Stage 1: Install dependencies
 # ────────────────────────────────────────────────────────────
-FROM python:3.14-slim AS deps
+FROM python:3.13-slim AS deps
 
 # Install build tools required by native extensions (e.g., hnswlib needs g++).
 RUN apt-get update && \
@@ -28,7 +28,7 @@ RUN uv sync --no-dev --frozen
 # ────────────────────────────────────────────────────────────
 # Stage 2: Run
 # ────────────────────────────────────────────────────────────
-FROM python:3.14-slim AS runtime
+FROM python:3.13-slim AS runtime
 
 WORKDIR /app
 
@@ -52,7 +52,7 @@ EXPOSE 8000
 #   --workers 1      → single worker; asyncio event loop is already concurrent
 #   --no-access-log  → structured logs come from the app; avoid double-logging
 CMD ["uvicorn", "app.main:app", \
-     "--host", "0.0.0.0", \
-     "--port", "8000", \
-     "--workers", "1", \
-     "--no-access-log"]
+    "--host", "0.0.0.0", \
+    "--port", "8000", \
+    "--workers", "1", \
+    "--no-access-log"]

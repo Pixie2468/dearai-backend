@@ -51,5 +51,6 @@ redis_data/
 postgres_data/
 falkor_data/
 
-# Frontend testing
+# Miscellanous
 index.html
+gcp.md

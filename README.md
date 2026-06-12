@@ -85,7 +85,6 @@ dearai-backend/
 │       └── utils/    # LLM + client setup
 │
 ├── docker-compose.yml  # Full stack: Gateway + AI Service + FalkorDB
-└── .github/workflows/  # CI/CD
 ```
 
 ---
@@ -141,8 +140,8 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 ### 5. Connect
 
 ```bash
-# Example using websocat (needs a valid OIDC JWT)
-websocat -H "Authorization: Bearer <your-jwt>" ws://localhost:8080/chat
+# Example using wscat (needs a valid OIDC JWT)
+wscat -c ws://localhost:8080/chat -H "Authorization: Bearer <your-jwt>"
 ```
 
 ---
@@ -188,7 +187,3 @@ docker compose ps
 | Auth (internal) | PASETO V4-local symmetric tokens |
 
 ---
-
-## License
-
-Private — all rights reserved.
