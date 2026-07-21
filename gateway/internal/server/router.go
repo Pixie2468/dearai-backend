@@ -3,10 +3,10 @@ package server
 import (
 	"net/http"
 
-	"github.com/Pixie2468/dearai-backend/internal/auth"
-	"github.com/Pixie2468/dearai-backend/internal/middleware"
-	"github.com/Pixie2468/dearai-backend/internal/proxy"
-	"github.com/Pixie2468/dearai-backend/internal/utils"
+	"github.com/Pixie2468/dearai-backend/gateway/internal/auth"
+	"github.com/Pixie2468/dearai-backend/gateway/internal/middleware"
+	"github.com/Pixie2468/dearai-backend/gateway/internal/proxy"
+	"github.com/Pixie2468/dearai-backend/gateway/internal/utils"
 )
 
 // NewRouter initializes the API Gateway routes using interface dependencies.
@@ -26,6 +26,12 @@ func NewRouter(
 	mux.Handle("/chat", authHandler)
 	mux.Handle("/chat/", authHandler)
 
+	// TTS endpoint — proxied to AI service with the same auth pipeline.
+	mux.Handle("/tts", authHandler)
+
+	// STT endpoint — proxied to AI service with the same auth pipeline.
+	mux.Handle("/stt", authHandler)
+
 	// 3. Register public routes (Using Go 1.22+ strict method routing)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		utils.RespondJSON(w, http.StatusOK, map[string]string{
@@ -33,7 +39,6 @@ func NewRouter(
 		})
 	})
 
-	// 4. (Optional but recommended) Wrap the entire mux in global middleware
-	// return middleware.Recoverer(middleware.Logger(mux))
-	return mux
+	// 4. Wrap the entire mux in global middleware (CORS)
+	return middleware.CORS(mux)
 }

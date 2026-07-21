@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Pixie2468/dearai-backend/internal/auth"
-	"github.com/Pixie2468/dearai-backend/internal/config"
-	"github.com/Pixie2468/dearai-backend/internal/proxy"
-	"github.com/Pixie2468/dearai-backend/internal/server"
+	"github.com/Pixie2468/dearai-backend/gateway/internal/auth"
+	"github.com/Pixie2468/dearai-backend/gateway/internal/config"
+	"github.com/Pixie2468/dearai-backend/gateway/internal/proxy"
+	"github.com/Pixie2468/dearai-backend/gateway/internal/server"
 )
 
 func main() {

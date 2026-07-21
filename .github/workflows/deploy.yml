@@ -1,0 +1,98 @@
+name: Deploy to GCP
+
+on:
+  push:
+    branches:
+      - main
+
+# Add permissions required for Workload Identity Federation
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
+  ARTIFACT_REPO: dear-ai-repo
+  AI_SERVICE_IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/dear-ai-repo/ai-service
+  GATEWAY_IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/dear-ai-repo/gateway
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Google Auth (Workload Identity Federation)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Docker Auth
+        run: |-
+          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      # --- AI SERVICE ---
+      - name: Build AI Service Image
+        run: docker build -t ${{ env.AI_SERVICE_IMAGE }}:${{ github.sha }} ./ai-service
+        
+      - name: Push AI Service Image
+        run: docker push ${{ env.AI_SERVICE_IMAGE }}:${{ github.sha }}
+
+      - name: Deploy AI Service to Cloud Run
+        id: deploy-ai
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: dear-ai-ai-service
+          region: ${{ env.GCP_REGION }}
+          image: ${{ env.AI_SERVICE_IMAGE }}:${{ github.sha }}
+          flags: |
+            --network=default
+            --subnet=default
+            --vpc-egress=private-ranges-only
+          env_vars: |
+            ENV=production
+            PASETO_SYMMETRIC_KEY=${{ secrets.PASETO_SYMMETRIC_KEY }}
+            FALKORDB_HOST=${{ secrets.FALKORDB_HOST }}
+            FALKORDB_PORT=6379
+            FALKORDB_PASSWORD=${{ secrets.FALKORDB_PASSWORD }}
+            VERTEX_MODEL_ID=5821184543108890624
+            VERTEX_PROJECT=${{ secrets.GCP_PROJECT_ID }}
+            VERTEX_LOCATION=${{ env.GCP_REGION }}
+            EMBEDDING_MODEL=text-embedding-004
+            DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}
+
+      # --- GATEWAY ---
+      - name: Build Gateway Image
+        run: docker build -t ${{ env.GATEWAY_IMAGE }}:${{ github.sha }} ./gateway
+        
+      - name: Push Gateway Image
+        run: docker push ${{ env.GATEWAY_IMAGE }}:${{ github.sha }}
+
+      - name: Get AI Service URL
+        id: get-ai-url
+        run: |
+          AI_URL=${{ steps.deploy-ai.outputs.url }}
+          # Convert https:// to wss://
+          WS_URL=$(echo $AI_URL | sed 's/https:\/\//wss:\/\//')
+          echo "BACKEND_WS=$WS_URL" >> $GITHUB_ENV
+
+      - name: Deploy Gateway to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: dear-ai-gateway
+          region: ${{ env.GCP_REGION }}
+          image: ${{ env.GATEWAY_IMAGE }}:${{ github.sha }}
+          env_vars: |
+            ENV=production
+            BACKEND_WS=${{ env.BACKEND_WS }}
+            PASETO_SYMMETRIC_KEY=${{ secrets.PASETO_SYMMETRIC_KEY }}
+            OIDC_ISSUER=https://securetoken.google.com/dear-ai-485310
+            OIDC_CLIENT_ID=dear-ai-485310

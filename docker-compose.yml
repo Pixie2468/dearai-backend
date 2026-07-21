@@ -20,14 +20,14 @@ services:
 
   ai_service:
     build:
-      context: ./ai_service
+      context: ./ai-service
       dockerfile: Dockerfile
     container_name: dear-ai-ai-service
     restart: unless-stopped
     expose:
       - "8000"
     env_file:
-      - ./ai_service/.env
+      - ./ai-service/.env
     # 1. Mount your local host's ADC file into the container securely (read-only)
     volumes:
       - /home/darsh/.config/gcloud/application_default_credentials.json:/tmp/keys/adc.json:ro,z

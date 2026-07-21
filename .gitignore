@@ -54,3 +54,5 @@ falkor_data/
 # Miscellanous
 index.html
 gcp.md
+*.css
+*.js

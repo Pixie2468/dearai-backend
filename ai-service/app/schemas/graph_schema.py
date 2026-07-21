@@ -28,9 +28,16 @@ class RelationLabel(StrEnum):
     CAUSES_MOOD = "CAUSES_MOOD"
 
 
+_cached_schema: GraphSchema | None = None
+
+
 def create_graph_schema() -> GraphSchema:
-    """Build and return the GraphSchema for the Dear AI knowledge graph."""
-    return GraphSchema(
+    """Build and return the cached GraphSchema for the Dear AI knowledge graph."""
+    global _cached_schema
+    if _cached_schema is not None:
+        return _cached_schema
+
+    _cached_schema = GraphSchema(
         entities=[
             EntityType(label=EntityLabel.USER, description="The human chatting with the bot"),
             EntityType(
@@ -93,3 +100,5 @@ def create_graph_schema() -> GraphSchema:
             ),
         ],
     )
+
+    return _cached_schema
