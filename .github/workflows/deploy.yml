@@ -93,6 +93,7 @@ jobs:
           image: ${{ env.GATEWAY_IMAGE }}:${{ github.sha }}
           env_vars: |
             ENV=production
+            ALLOWED_ORIGINS=*
             BACKEND_WS=${{ env.BACKEND_WS }}
             PASETO_SYMMETRIC_KEY=${{ secrets.PASETO_SYMMETRIC_KEY }}
             OIDC_ISSUER=https://securetoken.google.com/dear-ai-485310
