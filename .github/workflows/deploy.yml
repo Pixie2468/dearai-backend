@@ -58,6 +58,7 @@ jobs:
             --subnet=default
             --vpc-egress=private-ranges-only
             --port=8000
+            --allow-unauthenticated
           env_vars: |
             ENV=production
             PASETO_SYMMETRIC_KEY=${{ secrets.PASETO_SYMMETRIC_KEY }}
@@ -91,6 +92,8 @@ jobs:
           service: dear-ai-gateway
           region: ${{ env.GCP_REGION }}
           image: ${{ env.GATEWAY_IMAGE }}:${{ github.sha }}
+          flags: |
+            --allow-unauthenticated
           env_vars: |
             ENV=production
             ALLOWED_ORIGINS=*
