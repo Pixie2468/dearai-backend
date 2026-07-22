@@ -67,7 +67,7 @@ jobs:
             FALKORDB_PASSWORD=${{ secrets.FALKORDB_PASSWORD }}
             VERTEX_MODEL_ID=5821184543108890624
             VERTEX_PROJECT=${{ secrets.GCP_PROJECT_ID }}
-            VERTEX_LOCATION=${{ env.GCP_REGION }}
+            VERTEX_LOCATION=us-central1
             EMBEDDING_MODEL=text-embedding-004
             DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}
 
