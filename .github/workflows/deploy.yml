@@ -57,6 +57,7 @@ jobs:
             --network=default
             --subnet=default
             --vpc-egress=private-ranges-only
+            --port=8000
           env_vars: |
             ENV=production
             PASETO_SYMMETRIC_KEY=${{ secrets.PASETO_SYMMETRIC_KEY }}
