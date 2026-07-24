@@ -15,6 +15,10 @@ services:
     depends_on:
       ai_service:
         condition: service_healthy
+      chat_service:
+        condition: service_healthy
+      diary_service:
+        condition: service_healthy
     networks:
       - dear-ai-internal
 
@@ -36,6 +40,7 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/tmp/keys/adc.json
       - HF_HOME=/tmp/huggingface
       - XDG_CACHE_HOME=/tmp
+      - CHAT_SERVICE_URL=http://chat_service:8000
     depends_on:
       falkordb:
         condition: service_healthy
@@ -48,9 +53,77 @@ services:
     networks:
       - dear-ai-internal
 
+  chat_service:
+    build:
+      context: ./chat-service
+      dockerfile: Dockerfile
+    container_name: dear-ai-chat-service
+    restart: unless-stopped
+    expose:
+      - "8000"
+    env_file:
+      - ./chat-service/.env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - dear-ai-internal
+
+  diary_service:
+    build:
+      context: ./diary-service
+      dockerfile: Dockerfile
+    container_name: dear-ai-diary-service
+    restart: unless-stopped
+    expose:
+      - "8000"
+    env_file:
+      - ./diary-service/.env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - dear-ai-internal
+
   # ────────────────────────────────────────────────
   # Infrastructure
   # ────────────────────────────────────────────────
+  postgres:
+    image: postgres:15
+    container_name: dear-ai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dear-ai-internal
+
   falkordb:
     image: falkordb/falkordb:latest
     container_name: dear-ai-falkordb
@@ -80,3 +153,4 @@ networks:
 
 volumes:
   falkor_dearai:
+  postgres_data:
