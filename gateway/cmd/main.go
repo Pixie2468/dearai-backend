@@ -48,8 +48,13 @@ func main() {
 		log.Fatalf("Failed to initialize diary proxy: %v", err)
 	}
 
+	agentProxy, err := proxy.NewProxy(cfg.AgentServiceURL)
+	if err != nil {
+		log.Fatalf("Failed to initialize agent proxy: %v", err)
+	}
+
 	// 5. Wire the Router (Expecting interfaces from previous refactors)
-	mux := server.NewRouter(verifier, pasetoManager, revProxy, chatProxy, diaryProxy)
+	mux := server.NewRouter(verifier, pasetoManager, revProxy, chatProxy, diaryProxy, agentProxy)
 
 	srv := &http.Server{
 		Addr:         cfg.Addr,

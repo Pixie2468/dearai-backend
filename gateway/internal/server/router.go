@@ -16,6 +16,7 @@ func NewRouter(
 	p *proxy.Proxy,
 	chatProxy *proxy.Proxy,
 	diaryProxy *proxy.Proxy,
+	agentProxy *proxy.Proxy,
 ) http.Handler { // Return http.Handler to allow global middleware wrapping
 
 	mux := http.NewServeMux()
@@ -41,6 +42,10 @@ func NewRouter(
 	// Diary service endpoints
 	mux.Handle("/api/diary", middleware.RequireAuth(verifier, pasetoManager, diaryProxy))
 	mux.Handle("/api/diary/", middleware.RequireAuth(verifier, pasetoManager, diaryProxy))
+
+	// Agent service endpoints
+	mux.Handle("/api/agent", middleware.RequireAuth(verifier, pasetoManager, agentProxy))
+	mux.Handle("/api/agent/", middleware.RequireAuth(verifier, pasetoManager, agentProxy))
 
 	// 3. Register public routes (Using Go 1.22+ strict method routing)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {

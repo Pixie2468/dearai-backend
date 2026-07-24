@@ -15,6 +15,7 @@ env:
   GCP_REGION: ${{ secrets.GCP_REGION }}
   ARTIFACT_REPO: dear-ai-repo
   AI_SERVICE_IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/dear-ai-repo/ai-service
+  AGENT_SERVICE_IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/dear-ai-repo/agent-service
   GATEWAY_IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/dear-ai-repo/gateway
 
 jobs:
@@ -71,6 +72,33 @@ jobs:
             EMBEDDING_MODEL=text-embedding-004
             DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}
 
+      # --- AGENT SERVICE ---
+      - name: Build Agent Service Image
+        run: docker build -t ${{ env.AGENT_SERVICE_IMAGE }}:${{ github.sha }} ./agent-service
+        
+      - name: Push Agent Service Image
+        run: docker push ${{ env.AGENT_SERVICE_IMAGE }}:${{ github.sha }}
+
+      - name: Deploy Agent Service to Cloud Run
+        id: deploy-agent
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: dear-ai-agent-service
+          region: ${{ env.GCP_REGION }}
+          image: ${{ env.AGENT_SERVICE_IMAGE }}:${{ github.sha }}
+          flags: |
+            --network=default
+            --subnet=default
+            --vpc-egress=private-ranges-only
+            --port=8000
+            --allow-unauthenticated
+          env_vars: |
+            ENV=production
+            PASETO_SYMMETRIC_KEY=${{ secrets.PASETO_SYMMETRIC_KEY }}
+            VERTEX_GENERATION_MODEL=gemini-3.1-flash
+            VERTEX_PROJECT=${{ secrets.GCP_PROJECT_ID }}
+            VERTEX_LOCATION=${{ env.GCP_REGION }}
+
       # --- GATEWAY ---
       - name: Build Gateway Image
         run: docker build -t ${{ env.GATEWAY_IMAGE }}:${{ github.sha }} ./gateway
@@ -78,13 +106,16 @@ jobs:
       - name: Push Gateway Image
         run: docker push ${{ env.GATEWAY_IMAGE }}:${{ github.sha }}
 
-      - name: Get AI Service URL
-        id: get-ai-url
+      - name: Get Backend URLs
+        id: get-backend-urls
         run: |
           AI_URL=${{ steps.deploy-ai.outputs.url }}
           # Convert https:// to wss://
           WS_URL=$(echo $AI_URL | sed 's/https:\/\//wss:\/\//')
           echo "BACKEND_WS=$WS_URL" >> $GITHUB_ENV
+          
+          AGENT_URL=${{ steps.deploy-agent.outputs.url }}
+          echo "AGENT_SERVICE_URL=$AGENT_URL" >> $GITHUB_ENV
 
       - name: Deploy Gateway to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
@@ -98,6 +129,7 @@ jobs:
             ENV=production
             ALLOWED_ORIGINS=*
             BACKEND_WS=${{ env.BACKEND_WS }}
+            AGENT_SERVICE_URL=${{ env.AGENT_SERVICE_URL }}
             PASETO_SYMMETRIC_KEY=${{ secrets.PASETO_SYMMETRIC_KEY }}
             OIDC_ISSUER=https://securetoken.google.com/dear-ai-485310
             OIDC_CLIENT_ID=dear-ai-485310

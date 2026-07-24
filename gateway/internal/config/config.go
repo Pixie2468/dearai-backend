@@ -18,6 +18,7 @@ type Config struct {
 	BackendWS string `envconfig:"BACKEND_WS" required:"true"`
 	ChatServiceURL  string `envconfig:"CHAT_SERVICE_URL" required:"true"`
 	DiaryServiceURL string `envconfig:"DIARY_SERVICE_URL" required:"true"`
+	AgentServiceURL string `envconfig:"AGENT_SERVICE_URL" required:"true"`
 
 
 	OIDC_ISSUER    string `envconfig:"OIDC_ISSUER" required:"true"`
@@ -92,6 +93,9 @@ func (c *Config) Validate() error {
 	}
 	if _, err := url.Parse(c.DiaryServiceURL); err != nil {
 		return fmt.Errorf("invalid DIARY_SERVICE_URL: %w", err)
+	}
+	if _, err := url.Parse(c.AgentServiceURL); err != nil {
+		return fmt.Errorf("invalid AGENT_SERVICE_URL: %w", err)
 	}
 
 	// 3. OIDC Issuer Validation

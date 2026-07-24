@@ -101,6 +101,24 @@ services:
     networks:
       - dear-ai-internal
 
+  agent_service:
+    build:
+      context: ./agent-service
+      dockerfile: Dockerfile
+    container_name: dear-ai-agent-service
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    env_file:
+      - ./agent-service/.env.example
+    volumes:
+      - /home/darsh/.config/gcloud/application_default_credentials.json:/tmp/keys/adc.json:ro,z
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/tmp/keys/adc.json
+    networks:
+      - dear-ai-internal
+
+
   # ────────────────────────────────────────────────
   # Infrastructure
   # ────────────────────────────────────────────────
