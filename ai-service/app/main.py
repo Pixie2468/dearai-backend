@@ -5,6 +5,8 @@ import base64
 import contextlib
 import json
 import logging
+import os
+import httpx
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -12,6 +14,9 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 
 load_dotenv()
+
+CHAT_SERVICE_URL = os.getenv("CHAT_SERVICE_URL", "http://chat_service:8000")
+
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, Response
@@ -205,6 +210,7 @@ async def _handle_message(
     websocket: WebSocket,
     state: ConnectionState,
     user_id: str,
+    token: str,
     content: str,
     request_id: int,
 ) -> None:
@@ -236,7 +242,9 @@ async def _handle_message(
         schedule_ingestion(user_id, content)
 
         # --- Stream the LLM response ---
+        ai_response_chunks = []
         async for chunk in stream_response(content, graph_context):
+            ai_response_chunks.append(chunk)
             await _safe_send_json(
                 websocket,
                 state,
@@ -248,6 +256,8 @@ async def _handle_message(
                 },
             )
 
+        ai_content = "".join(ai_response_chunks)
+
         await _safe_send_json(
             websocket,
             state,
@@ -258,6 +268,26 @@ async def _handle_message(
                 "final": True,
             },
         )
+        
+        # --- Save chat to chat-service ---
+        try:
+            async with httpx.AsyncClient() as client:
+                headers = {"X-Internal-Auth": token}
+                # Save user message
+                await client.post(
+                    f"{CHAT_SERVICE_URL}/chats",
+                    json={"role": "user", "content": content},
+                    headers=headers,
+                )
+                # Save AI message
+                await client.post(
+                    f"{CHAT_SERVICE_URL}/chats",
+                    json={"role": "ai", "content": ai_content},
+                    headers=headers,
+                )
+        except Exception as e:
+            logger.error("Failed to save chat to chat-service: %s", e)
+
     except asyncio.CancelledError:
         logger.info("Cancelled in-flight request %s", request_id)
         raise
@@ -278,9 +308,10 @@ async def _handle_message(
 @app.websocket("/chat")
 async def chat_ws(websocket: WebSocket) -> None:
     """WebSocket chat handler with cancellation on new message."""
-    user_id = await verify_websocket_handshake(websocket)
-    if user_id is None:
+    auth_result = await verify_websocket_handshake(websocket)
+    if auth_result is None:
         return
+    user_id, token = auth_result
 
     await websocket.accept()
 
@@ -306,7 +337,7 @@ async def chat_ws(websocket: WebSocket) -> None:
             current_id = state.request_id
 
             state.active_task = asyncio.create_task(
-                _handle_message(websocket, state, user_id, content.strip(), current_id)
+                _handle_message(websocket, state, user_id, token, content.strip(), current_id)
             )
     except WebSocketDisconnect:
         await _cancel_active(state)
