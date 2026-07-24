@@ -16,6 +16,9 @@ type Config struct {
 	Environment string `envconfig:"ENV" default:"development"`
 
 	BackendWS string `envconfig:"BACKEND_WS" required:"true"`
+	ChatServiceURL  string `envconfig:"CHAT_SERVICE_URL" required:"true"`
+	DiaryServiceURL string `envconfig:"DIARY_SERVICE_URL" required:"true"`
+
 
 	OIDC_ISSUER    string `envconfig:"OIDC_ISSUER" required:"true"`
 	OIDC_CLIENT_ID string `envconfig:"OIDC_CLIENT_ID" required:"true"`
@@ -82,6 +85,13 @@ func (c *Config) Validate() error {
 	}
 	if wsURL.Host == "" {
 		return fmt.Errorf("BACKEND_WS must include a valid host (e.g., ws://localhost:8080)")
+	}
+
+	if _, err := url.Parse(c.ChatServiceURL); err != nil {
+		return fmt.Errorf("invalid CHAT_SERVICE_URL: %w", err)
+	}
+	if _, err := url.Parse(c.DiaryServiceURL); err != nil {
+		return fmt.Errorf("invalid DIARY_SERVICE_URL: %w", err)
 	}
 
 	// 3. OIDC Issuer Validation

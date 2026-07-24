@@ -1,0 +1,14 @@
+[project]
+name = "diary-service"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.139.2",
+    "psycopg2-binary>=2.9.9",
+    "pyseto>=1.10.0",
+    "python-dotenv>=1.2.2",
+    "sqlalchemy>=2.0.51",
+    "uvicorn>=0.51.0",
+]

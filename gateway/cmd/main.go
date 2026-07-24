@@ -38,8 +38,18 @@ func main() {
 		log.Fatalf("Failed to initialize proxy: %v", err)
 	}
 
+	chatProxy, err := proxy.NewProxy(cfg.ChatServiceURL)
+	if err != nil {
+		log.Fatalf("Failed to initialize chat proxy: %v", err)
+	}
+
+	diaryProxy, err := proxy.NewProxy(cfg.DiaryServiceURL)
+	if err != nil {
+		log.Fatalf("Failed to initialize diary proxy: %v", err)
+	}
+
 	// 5. Wire the Router (Expecting interfaces from previous refactors)
-	mux := server.NewRouter(verifier, pasetoManager, revProxy)
+	mux := server.NewRouter(verifier, pasetoManager, revProxy, chatProxy, diaryProxy)
 
 	srv := &http.Server{
 		Addr:         cfg.Addr,

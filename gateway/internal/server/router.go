@@ -14,6 +14,8 @@ func NewRouter(
 	verifier auth.TokenVerifier,
 	pasetoManager auth.TokenManager,
 	p *proxy.Proxy,
+	chatProxy *proxy.Proxy,
+	diaryProxy *proxy.Proxy,
 ) http.Handler { // Return http.Handler to allow global middleware wrapping
 
 	mux := http.NewServeMux()
@@ -31,6 +33,14 @@ func NewRouter(
 
 	// STT endpoint — proxied to AI service with the same auth pipeline.
 	mux.Handle("/stt", authHandler)
+
+	// Chat service endpoints
+	mux.Handle("/api/chat", middleware.RequireAuth(verifier, pasetoManager, chatProxy))
+	mux.Handle("/api/chat/", middleware.RequireAuth(verifier, pasetoManager, chatProxy))
+
+	// Diary service endpoints
+	mux.Handle("/api/diary", middleware.RequireAuth(verifier, pasetoManager, diaryProxy))
+	mux.Handle("/api/diary/", middleware.RequireAuth(verifier, pasetoManager, diaryProxy))
 
 	// 3. Register public routes (Using Go 1.22+ strict method routing)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
