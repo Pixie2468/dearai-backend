@@ -8,11 +8,11 @@ WORKDIR /app
 # Copy dependency definition
 COPY pyproject.toml .
 
-# Install dependencies via uv
-RUN uv pip install --system -e .
-
 # Copy application source
 COPY app/ app/
+
+# Install dependencies via uv
+RUN uv pip install --system -e .
 
 # Run the FastAPI server
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
