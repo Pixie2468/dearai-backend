@@ -16,6 +16,8 @@ env:
   ARTIFACT_REPO: dear-ai-repo
   AI_SERVICE_IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/dear-ai-repo/ai-service
   AGENT_SERVICE_IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/dear-ai-repo/agent-service
+  CHAT_SERVICE_IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/dear-ai-repo/chat-service
+  DIARY_SERVICE_IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/dear-ai-repo/diary-service
   GATEWAY_IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/dear-ai-repo/gateway
 
 jobs:
@@ -58,7 +60,7 @@ jobs:
             --network=default
             --subnet=default
             --vpc-egress=private-ranges-only
-            --port=8000
+            --port=8001
             --allow-unauthenticated
           env_vars: |
             ENV=production
@@ -90,7 +92,7 @@ jobs:
             --network=default
             --subnet=default
             --vpc-egress=private-ranges-only
-            --port=8000
+            --port=8002
             --allow-unauthenticated
           env_vars: |
             ENV=production
@@ -98,6 +100,56 @@ jobs:
             VERTEX_GENERATION_MODEL=gemini-3.1-flash
             VERTEX_PROJECT=${{ secrets.GCP_PROJECT_ID }}
             VERTEX_LOCATION=${{ env.GCP_REGION }}
+
+      # --- CHAT SERVICE ---
+      - name: Build Chat Service Image
+        run: docker build -t ${{ env.CHAT_SERVICE_IMAGE }}:${{ github.sha }} ./chat-service
+        
+      - name: Push Chat Service Image
+        run: docker push ${{ env.CHAT_SERVICE_IMAGE }}:${{ github.sha }}
+
+      - name: Deploy Chat Service to Cloud Run
+        id: deploy-chat
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: dear-ai-chat-service
+          region: ${{ env.GCP_REGION }}
+          image: ${{ env.CHAT_SERVICE_IMAGE }}:${{ github.sha }}
+          flags: |
+            --network=default
+            --subnet=default
+            --vpc-egress=private-ranges-only
+            --port=8003
+            --allow-unauthenticated
+          env_vars: |
+            ENV=production
+            PASETO_SYMMETRIC_KEY=${{ secrets.PASETO_SYMMETRIC_KEY }}
+            DATABASE_URL=${{ secrets.CHAT_DATABASE_URL }}
+
+      # --- DIARY SERVICE ---
+      - name: Build Diary Service Image
+        run: docker build -t ${{ env.DIARY_SERVICE_IMAGE }}:${{ github.sha }} ./diary-service
+        
+      - name: Push Diary Service Image
+        run: docker push ${{ env.DIARY_SERVICE_IMAGE }}:${{ github.sha }}
+
+      - name: Deploy Diary Service to Cloud Run
+        id: deploy-diary
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: dear-ai-diary-service
+          region: ${{ env.GCP_REGION }}
+          image: ${{ env.DIARY_SERVICE_IMAGE }}:${{ github.sha }}
+          flags: |
+            --network=default
+            --subnet=default
+            --vpc-egress=private-ranges-only
+            --port=8004
+            --allow-unauthenticated
+          env_vars: |
+            ENV=production
+            PASETO_SYMMETRIC_KEY=${{ secrets.PASETO_SYMMETRIC_KEY }}
+            DATABASE_URL=${{ secrets.DIARY_DATABASE_URL }}
 
       # --- GATEWAY ---
       - name: Build Gateway Image
@@ -116,6 +168,12 @@ jobs:
           
           AGENT_URL=${{ steps.deploy-agent.outputs.url }}
           echo "AGENT_SERVICE_URL=$AGENT_URL" >> $GITHUB_ENV
+          
+          CHAT_URL=${{ steps.deploy-chat.outputs.url }}
+          echo "CHAT_SERVICE_URL=$CHAT_URL" >> $GITHUB_ENV
+          
+          DIARY_URL=${{ steps.deploy-diary.outputs.url }}
+          echo "DIARY_SERVICE_URL=$DIARY_URL" >> $GITHUB_ENV
 
       - name: Deploy Gateway to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
@@ -130,6 +188,8 @@ jobs:
             ALLOWED_ORIGINS=*
             BACKEND_WS=${{ env.BACKEND_WS }}
             AGENT_SERVICE_URL=${{ env.AGENT_SERVICE_URL }}
+            CHAT_SERVICE_URL=${{ env.CHAT_SERVICE_URL }}
+            DIARY_SERVICE_URL=${{ env.DIARY_SERVICE_URL }}
             PASETO_SYMMETRIC_KEY=${{ secrets.PASETO_SYMMETRIC_KEY }}
             OIDC_ISSUER=https://securetoken.google.com/dear-ai-485310
             OIDC_CLIENT_ID=dear-ai-485310
