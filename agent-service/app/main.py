@@ -36,23 +36,47 @@ async def summarize_to_diary(request: Request) -> dict:
     if not user_id:
         return JSONResponse(content={"error": "invalid_auth"}, status_code=401)
         
-    # 1. Fetch chats from chat-service
+    # 1. Fetch latest diary to get threshold
+    after_timestamp = None
     try:
         async with httpx.AsyncClient() as client:
             headers = {"X-Internal-Auth": token}
+            diary_resp = await client.get(
+                f"{DIARY_SERVICE_URL}/diary",
+                headers=headers,
+                params={"limit": 1}
+            )
+            if diary_resp.status_code != 200:
+                return JSONResponse(content={"error": f"Diary service error: {diary_resp.status_code} - {diary_resp.text}"}, status_code=500)
+            diary_resp.raise_for_status()
+            diaries = diary_resp.json()
+            if diaries:
+                after_timestamp = diaries[0].get("created_at")
+    except Exception as exc:
+        logger.exception("Failed to fetch latest diary: %s", exc)
+        return JSONResponse(content={"error": f"failed_to_fetch_diary: {str(exc)}"}, status_code=500)
+
+    # 2. Fetch chats from chat-service
+    try:
+        async with httpx.AsyncClient() as client:
+            headers = {"X-Internal-Auth": token}
+            params = {"limit": 100}
+            if after_timestamp:
+                params["after"] = after_timestamp
+                
             chat_resp = await client.get(
                 f"{CHAT_SERVICE_URL}/chats",
                 headers=headers,
-                params={"limit": 50}
+                params=params
             )
             chat_resp.raise_for_status()
             chats = chat_resp.json()
     except Exception as exc:
         logger.exception("Failed to fetch chats: %s", exc)
-        return JSONResponse(content={"error": "failed_to_fetch_chats"}, status_code=500)
+        return JSONResponse(content={"error": f"failed_to_fetch_chats: {str(exc)}"}, status_code=500)
         
     if not chats:
-        return JSONResponse(content={"error": "no_chats_found"}, status_code=400)
+        return {"message": "No new chats to summarize", "entry": None}
         
     formatted_chats = [
         {"role": c.get("role", "user"), "content": c.get("content", "")} 
@@ -65,7 +89,7 @@ async def summarize_to_diary(request: Request) -> dict:
         result = graph.invoke({"chats": formatted_chats})
     except Exception as exc:
         logger.exception("Diary agent failed: %s", exc)
-        return JSONResponse(content={"error": "agent_failed"}, status_code=500)
+        return JSONResponse(content={"error": f"agent_failed: {str(exc)}"}, status_code=500)
         
     title = result.get("diary_title", "My Diary Entry")
     content = result.get("diary_content", "")
