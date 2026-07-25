@@ -206,6 +206,25 @@ async def _safe_send_json(
         logger.debug("WebSocket send failed: %s", exc)
 
 
+async def _send_tts_audio(websocket: WebSocket, state: ConnectionState, request_id: int, text: str, voice: str) -> None:
+    """Synthesize speech and send it over WebSocket as base64."""
+    if request_id != state.request_id:
+        return
+    try:
+        audio_bytes = await synthesize_speech(text, voice=voice)
+        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+        await _safe_send_json(
+            websocket, state, request_id,
+            {
+                "layer": "audio",
+                "audio": audio_b64,
+                "final": False,
+            }
+        )
+    except Exception as exc:
+        logger.error(f"[{request_id}] TTS failed for text '{text[:20]}...': {exc}")
+
+
 def _get_internal_token(user_id: str) -> str:
     import datetime
     from pyseto import encode
@@ -246,7 +265,10 @@ async def _handle_message(
     state: ConnectionState,
     user_id: str,
     token: str,
-    content: str,
+    content: str | None,
+    audio_b64: str | None,
+    voice_mode: bool,
+    voice: str,
     request_id: int,
     session_id: str | None,
 ) -> None:
@@ -256,6 +278,27 @@ async def _handle_message(
     background task so it never blocks the response.
     """
     try:
+        # --- STT ---
+        if audio_b64:
+            try:
+                audio_bytes = base64.b64decode(audio_b64)
+                content = await transcribe_audio(audio_bytes)
+                if content and content.strip():
+                    await _safe_send_json(
+                        websocket, state, request_id, 
+                        {"layer": "transcript", "content": content.strip(), "final": True}
+                    )
+            except Exception as exc:
+                logger.error(f"[{request_id}] Failed to decode or transcribe audio: {exc}")
+                await _safe_send_json(websocket, state, request_id, {"error": "stt_failed"})
+                return
+
+        if not content or not content.strip():
+            # Nothing to process
+            return
+
+        content = content.strip()
+
         # --- Safety Check ---
         if not check_safety(content):
             logger.warning(f"[{request_id}] Safety check failed for user {user_id}. Halting generation.")
@@ -346,6 +389,10 @@ async def _handle_message(
 
         # --- Stream the LLM response ---
         ai_response_chunks = []
+        current_sentence = []
+        import re
+        sentence_end_pattern = re.compile(r'([.?!])\s+')
+
         async for chunk in stream_response(content, graph_context, history):
             ai_response_chunks.append(chunk)
             await _safe_send_json(
@@ -358,6 +405,27 @@ async def _handle_message(
                     "final": False,
                 },
             )
+
+            if voice_mode:
+                current_sentence.append(chunk)
+                # Basic sentence detection: look for ., ?, ! followed by space
+                joined_sentence = "".join(current_sentence)
+                match = sentence_end_pattern.search(joined_sentence)
+                if match:
+                    # Split at the punctuation
+                    split_idx = match.end()
+                    sentence_to_speak = joined_sentence[:split_idx].strip()
+                    current_sentence = [joined_sentence[split_idx:]]
+                    
+                    if sentence_to_speak:
+                        # Fire off TTS task for this sentence
+                        asyncio.create_task(_send_tts_audio(websocket, state, request_id, sentence_to_speak, voice))
+
+        # Handle any remaining text for TTS
+        if voice_mode and current_sentence:
+            sentence_to_speak = "".join(current_sentence).strip()
+            if sentence_to_speak:
+                asyncio.create_task(_send_tts_audio(websocket, state, request_id, sentence_to_speak, voice))
 
         ai_content = "".join(ai_response_chunks)
 
@@ -430,10 +498,13 @@ async def chat_ws(websocket: WebSocket) -> None:
                 continue
 
             content = payload.get("content")
+            audio_b64 = payload.get("audio")
             session_id = payload.get("session_id")
+            voice_mode = payload.get("voice_mode", False)
+            voice = payload.get("voice", "en-US-Journey-F")
             
-            if not isinstance(content, str) or not content.strip():
-                await websocket.send_json({"error": "missing_content"})
+            if not content and not audio_b64:
+                await websocket.send_json({"error": "missing_content_or_audio"})
                 continue
 
             await _cancel_active(state)
@@ -442,7 +513,7 @@ async def chat_ws(websocket: WebSocket) -> None:
             current_id = state.request_id
 
             state.active_task = asyncio.create_task(
-                _handle_message(websocket, state, user_id, token, content.strip(), current_id, session_id)
+                _handle_message(websocket, state, user_id, token, content, audio_b64, voice_mode, voice, current_id, session_id)
             )
     except WebSocketDisconnect:
         await _cancel_active(state)

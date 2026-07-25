@@ -20,10 +20,10 @@ Public-facing API gateway written in Go. It is the **only** entry point clients 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/health` | Public | Liveness check |
-| `GET/WS` | `/chat` | OIDC JWT | Proxied to AI service WebSocket endpoint |
+| `GET/WS` | `/chat` | OIDC JWT | Proxied to AI service WebSocket endpoint (Supports Voice STT/TTS) |
 | `GET/WS` | `/chat/` | OIDC JWT | Same — avoids redirect that breaks WS upgrades |
-| `POST` | `/voice/stt` | OIDC JWT | Proxied to AI service STT (Speech-to-Text) endpoint |
-| `POST` | `/voice/tts` | OIDC JWT | Proxied to AI service TTS (Text-to-Speech) endpoint |
+| `POST` | `/voice/stt` | OIDC JWT | Proxied to AI service STT endpoint (REST Fallback) |
+| `POST` | `/voice/tts` | OIDC JWT | Proxied to AI service TTS endpoint (REST Fallback) |
 | `*` | `/api/chat/*` | OIDC JWT | Proxied to Chat Service (History Storage) |
 | `*` | `/api/diary/*` | OIDC JWT | Proxied to Diary Service (Diary Storage) |
 | `*` | `/api/agent/*` | OIDC JWT | Proxied to Agent Service (LangGraph Summarizer) |

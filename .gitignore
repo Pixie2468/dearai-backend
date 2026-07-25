@@ -59,3 +59,4 @@ gcp.md
 frontend_integration.md
 get_paseto_key.py
 api_specification.md
+test_e2e.py
