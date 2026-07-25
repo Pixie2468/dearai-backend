@@ -206,6 +206,41 @@ async def _safe_send_json(
         logger.debug("WebSocket send failed: %s", exc)
 
 
+def _get_internal_token(user_id: str) -> str:
+    import datetime
+    from pyseto import encode
+    from app.auth.paseto import PASETO_KEY
+    now = datetime.datetime.now(datetime.timezone.utc)
+    exp = (now + datetime.timedelta(minutes=5)).isoformat().replace("+00:00", "Z")
+    payload = {
+        "iss": os.getenv("PASETO_ISSUER", "dear-ai-gateway"),
+        "aud": os.getenv("PASETO_AUDIENCE", "dear-ai-python-backend"),
+        "sub": user_id,
+        "exp": exp
+    }
+    return encode(PASETO_KEY, payload).decode("utf-8")
+
+
+async def _auto_title_session(user_id: str, session_id: str, first_message: str):
+    try:
+        genai_client, model = get_client()
+        prompt = f"Generate a very short title (max 5 words) for a chat that starts with this message. Return ONLY the title string, no quotes.\n\nMessage: {first_message}"
+        response = await genai_client.aio.models.generate_content(
+            model=str(model),
+            contents=prompt,
+        )
+        title = response.text.strip().replace('"', '')
+        token = _get_internal_token(user_id)
+        async with httpx.AsyncClient() as client:
+            await client.patch(
+                f"{CHAT_SERVICE_URL}/sessions/{session_id}",
+                json={"title": title},
+                headers={"X-Internal-Auth": token}
+            )
+    except Exception as e:
+        logger.error(f"Auto-title failed: {e}")
+
+
 async def _handle_message(
     websocket: WebSocket,
     state: ConnectionState,
@@ -213,6 +248,7 @@ async def _handle_message(
     token: str,
     content: str,
     request_id: int,
+    session_id: str | None,
 ) -> None:
     """Run GraphRAG retrieval + LLM streaming for a single user message.
 
@@ -250,6 +286,33 @@ async def _handle_message(
             )
             return
 
+        internal_token = _get_internal_token(user_id)
+        
+        is_new_session = False
+        if not session_id:
+            # Create a new session
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    f"{CHAT_SERVICE_URL}/sessions",
+                    json={"title": "New Chat"},
+                    headers={"X-Internal-Auth": internal_token}
+                )
+                if resp.status_code == 200:
+                    session_id = resp.json().get("id")
+                    is_new_session = True
+                else:
+                    logger.error(f"Failed to create session: {resp.text}")
+                    raise Exception("Could not create chat session")
+
+        # Notify client of the active session ID so it can resume/continue
+        await _safe_send_json(
+            websocket, state, request_id,
+            {"layer": "session_id", "content": session_id, "final": False}
+        )
+
+        if is_new_session:
+            asyncio.create_task(_auto_title_session(user_id, session_id, content))
+
         await _safe_send_json(
             websocket,
             state,
@@ -260,6 +323,16 @@ async def _handle_message(
                 "final": False,
             },
         )
+
+        history = []
+        if not is_new_session:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"{CHAT_SERVICE_URL}/chats?session_id={session_id}&limit=20",
+                    headers={"X-Internal-Auth": internal_token}
+                )
+                if resp.status_code == 200:
+                    history = resp.json()
 
         # --- Fast path: retrieve existing context (no write) ---
         logger.info(f"[{request_id}] Retrieving graph context…")
@@ -273,7 +346,7 @@ async def _handle_message(
 
         # --- Stream the LLM response ---
         ai_response_chunks = []
-        async for chunk in stream_response(content, graph_context):
+        async for chunk in stream_response(content, graph_context, history):
             ai_response_chunks.append(chunk)
             await _safe_send_json(
                 websocket,
@@ -301,31 +374,18 @@ async def _handle_message(
         
         # --- Save chat to chat-service ---
         try:
-            import datetime, json
-            from pyseto import encode
-            from app.auth.paseto import PASETO_KEY
-            now = datetime.datetime.now(datetime.timezone.utc)
-            exp = (now + datetime.timedelta(minutes=5)).isoformat().replace("+00:00", "Z")
-            payload = {
-                "iss": os.getenv("PASETO_ISSUER", "dear-ai-gateway"),
-                "aud": os.getenv("PASETO_AUDIENCE", "dear-ai-python-backend"),
-                "sub": user_id,
-                "exp": exp
-            }
-            fresh_token = encode(PASETO_KEY, payload).decode("utf-8")
-
             async with httpx.AsyncClient() as client:
-                headers = {"X-Internal-Auth": fresh_token}
+                headers = {"X-Internal-Auth": internal_token}
                 # Save user message
                 await client.post(
                     f"{CHAT_SERVICE_URL}/chats",
-                    json={"role": "user", "content": content},
+                    json={"role": "user", "content": content, "session_id": session_id},
                     headers=headers,
                 )
                 # Save AI message
                 await client.post(
                     f"{CHAT_SERVICE_URL}/chats",
-                    json={"role": "ai", "content": ai_content},
+                    json={"role": "ai", "content": ai_content, "session_id": session_id},
                     headers=headers,
                 )
         except Exception as e:
@@ -370,6 +430,8 @@ async def chat_ws(websocket: WebSocket) -> None:
                 continue
 
             content = payload.get("content")
+            session_id = payload.get("session_id")
+            
             if not isinstance(content, str) or not content.strip():
                 await websocket.send_json({"error": "missing_content"})
                 continue
@@ -380,7 +442,7 @@ async def chat_ws(websocket: WebSocket) -> None:
             current_id = state.request_id
 
             state.active_task = asyncio.create_task(
-                _handle_message(websocket, state, user_id, token, content.strip(), current_id)
+                _handle_message(websocket, state, user_id, token, content.strip(), current_id, session_id)
             )
     except WebSocketDisconnect:
         await _cancel_active(state)

@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
+from typing import List, Dict
 
 from google.genai import types
 
@@ -12,8 +13,8 @@ from app.utils.setup_client import get_client
 logger = logging.getLogger(__name__)
 
 
-async def stream_response(user_query: str, graph_context: str) -> AsyncGenerator[str, None]:
-    """Stream model output for a user query with optional context."""
+async def stream_response(user_query: str, graph_context: str, history: List[Dict[str, str]] = None) -> AsyncGenerator[str, None]:
+    """Stream model output for a user query with optional context and chat history."""
     client, model = get_client()
 
     system_instruction = build_system_prompt(graph_context)
@@ -23,10 +24,31 @@ async def stream_response(user_query: str, graph_context: str) -> AsyncGenerator
         temperature=0.6,
     )
 
+    # Build contents from history
+    contents = []
+    if history:
+        for msg in history:
+            # Map roles: 'ai' -> 'model', 'user' -> 'user'
+            role = "model" if msg.get("role") == "ai" else "user"
+            contents.append(
+                types.Content(
+                    role=role,
+                    parts=[types.Part.from_text(text=msg.get("content", ""))]
+                )
+            )
+            
+    # Append the current user query
+    contents.append(
+        types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=user_query)]
+        )
+    )
+
     try:
         response_stream = await client.aio.models.generate_content_stream(
             model=str(model),
-            contents=user_query,
+            contents=contents,
             config=config,
         )
 
