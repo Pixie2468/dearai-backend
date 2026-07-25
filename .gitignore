@@ -52,8 +52,10 @@ postgres_data/
 falkor_data/
 
 # Miscellanous
-index.html
+*.html
 gcp.md
 *.css
 *.js
 frontend_integration.md
+get_paseto_key.py
+api_specification.md

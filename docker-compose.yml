@@ -29,7 +29,7 @@ services:
     container_name: dear-ai-ai-service
     restart: unless-stopped
     expose:
-      - "8000"
+      - "8001"
     env_file:
       - ./ai-service/.env
     # 1. Mount your local host's ADC file into the container securely (read-only)
@@ -40,12 +40,12 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/tmp/keys/adc.json
       - HF_HOME=/tmp/huggingface
       - XDG_CACHE_HOME=/tmp
-      - CHAT_SERVICE_URL=http://chat_service:8000
+      - CHAT_SERVICE_URL=http://chat_service:8003
     depends_on:
       falkordb:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -60,16 +60,17 @@ services:
     container_name: dear-ai-chat-service
     restart: unless-stopped
     expose:
-      - "8000"
+      - "8003"
     env_file:
       - ./chat-service/.env
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
+      - PORT=8003
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/docs')"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -84,16 +85,17 @@ services:
     container_name: dear-ai-diary-service
     restart: unless-stopped
     expose:
-      - "8000"
+      - "8004"
     env_file:
       - ./diary-service/.env
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
+      - PORT=8004
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8004/docs')"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -108,9 +110,9 @@ services:
     container_name: dear-ai-agent-service
     restart: unless-stopped
     ports:
-      - "8001:8000"
+      - "8002:8002"
     env_file:
-      - ./agent-service/.env.example
+      - ./agent-service/.env
     volumes:
       - /home/darsh/.config/gcloud/application_default_credentials.json:/tmp/keys/adc.json:ro,z
     environment:
