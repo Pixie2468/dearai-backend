@@ -30,22 +30,22 @@ func NewRouter(
 	mux.Handle("/chat/", authHandler)
 
 	// TTS endpoint — proxied to AI service with the same auth pipeline.
-	mux.Handle("/tts", authHandler)
+	mux.Handle("/voice/tts", authHandler)
 
 	// STT endpoint — proxied to AI service with the same auth pipeline.
-	mux.Handle("/stt", authHandler)
+	mux.Handle("/voice/stt", authHandler)
 
 	// Chat service endpoints
-	mux.Handle("/api/chat", middleware.RequireAuth(verifier, pasetoManager, chatProxy))
-	mux.Handle("/api/chat/", middleware.RequireAuth(verifier, pasetoManager, chatProxy))
+	mux.Handle("/api/chat", http.StripPrefix("/api/chat", middleware.RequireAuth(verifier, pasetoManager, chatProxy)))
+	mux.Handle("/api/chat/", http.StripPrefix("/api/chat", middleware.RequireAuth(verifier, pasetoManager, chatProxy)))
 
 	// Diary service endpoints
-	mux.Handle("/api/diary", middleware.RequireAuth(verifier, pasetoManager, diaryProxy))
-	mux.Handle("/api/diary/", middleware.RequireAuth(verifier, pasetoManager, diaryProxy))
+	mux.Handle("/api/diary", http.StripPrefix("/api/diary", middleware.RequireAuth(verifier, pasetoManager, diaryProxy)))
+	mux.Handle("/api/diary/", http.StripPrefix("/api/diary", middleware.RequireAuth(verifier, pasetoManager, diaryProxy)))
 
 	// Agent service endpoints
-	mux.Handle("/api/agent", middleware.RequireAuth(verifier, pasetoManager, agentProxy))
-	mux.Handle("/api/agent/", middleware.RequireAuth(verifier, pasetoManager, agentProxy))
+	mux.Handle("/api/agent", http.StripPrefix("/api/agent", middleware.RequireAuth(verifier, pasetoManager, agentProxy)))
+	mux.Handle("/api/agent/", http.StripPrefix("/api/agent", middleware.RequireAuth(verifier, pasetoManager, agentProxy)))
 
 	// 3. Register public routes (Using Go 1.22+ strict method routing)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
