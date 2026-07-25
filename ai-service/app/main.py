@@ -30,6 +30,7 @@ from app.services.context.graphrag import (
 from app.services.llm.generate_output import stream_response
 from app.services.stt.stt import transcribe_audio
 from app.services.tts.tts import synthesize_speech
+from app.services.safety.check import check_safety, check_relevance
 from app.utils.llm_setup import setup_llm
 from app.utils.setup_client import get_client
 
@@ -85,7 +86,7 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
-@app.post("/tts")
+@app.post("/voice/tts")
 async def tts_endpoint(request: Request) -> Response:
     """Convert text to speech using Google Cloud TTS.
 
@@ -135,7 +136,7 @@ async def tts_endpoint(request: Request) -> Response:
     )
 
 
-@app.post("/stt")
+@app.post("/voice/stt")
 async def stt_endpoint(request: Request) -> dict:
     """Convert speech to text using Google Cloud STT.
 
@@ -219,6 +220,36 @@ async def _handle_message(
     background task so it never blocks the response.
     """
     try:
+        # --- Safety Check ---
+        if not check_safety(content):
+            logger.warning(f"[{request_id}] Safety check failed for user {user_id}. Halting generation.")
+            await _safe_send_json(
+                websocket,
+                state,
+                request_id,
+                {
+                    "layer": "emergency",
+                    "content": "Emergency: We detected that you might be in distress. If you are experiencing a crisis, please contact emergency services or a crisis helpline immediately. Help is available.",
+                    "final": True,
+                },
+            )
+            return
+
+        # --- Relevance Check ---
+        if not check_relevance(content):
+            logger.warning(f"[{request_id}] Relevance check failed for user {user_id}. Halting generation.")
+            await _safe_send_json(
+                websocket,
+                state,
+                request_id,
+                {
+                    "layer": "irrelevant",
+                    "content": "I am a friendly chatbot and I am not designed to help with coding or unrelated technical tasks. Let's chat about something else!",
+                    "final": True,
+                },
+            )
+            return
+
         await _safe_send_json(
             websocket,
             state,
@@ -270,8 +301,21 @@ async def _handle_message(
         
         # --- Save chat to chat-service ---
         try:
+            import datetime, json
+            from pyseto import encode
+            from app.auth.paseto import PASETO_KEY
+            now = datetime.datetime.now(datetime.timezone.utc)
+            exp = (now + datetime.timedelta(minutes=5)).isoformat().replace("+00:00", "Z")
+            payload = {
+                "iss": os.getenv("PASETO_ISSUER", "dear-ai-gateway"),
+                "aud": os.getenv("PASETO_AUDIENCE", "dear-ai-python-backend"),
+                "sub": user_id,
+                "exp": exp
+            }
+            fresh_token = encode(PASETO_KEY, payload).decode("utf-8")
+
             async with httpx.AsyncClient() as client:
-                headers = {"X-Internal-Auth": token}
+                headers = {"X-Internal-Auth": fresh_token}
                 # Save user message
                 await client.post(
                     f"{CHAT_SERVICE_URL}/chats",

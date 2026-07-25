@@ -46,13 +46,13 @@ COPY app/ ./app/
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 USER appuser
 
-EXPOSE 8000
+EXPOSE 8001
 
 # Uvicorn with:
 #   --workers 1      → single worker; asyncio event loop is already concurrent
 #   --no-access-log  → structured logs come from the app; avoid double-logging
 CMD ["uvicorn", "app.main:app", \
     "--host", "0.0.0.0", \
-    "--port", "8000", \
+    "--port", "8001", \
     "--workers", "1", \
     "--no-access-log"]

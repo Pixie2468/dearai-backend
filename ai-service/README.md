@@ -13,6 +13,7 @@ Internal FastAPI service that handles the WebSocket chat session. It sits **behi
 | **Interrupt handling** | Cancels any in-flight `asyncio.Task` when a new message arrives or the client disconnects. |
 | **GraphRAG pipeline** | Ingests each user message into a personal FalkorDB knowledge graph, retrieves relevant context. |
 | **LLM streaming** | Streams Gemini responses chunk-by-chunk back to the client via the WebSocket. |
+| **Voice support** | Exposes `/voice/stt` (Speech-to-Text) and `/voice/tts` (Text-to-Speech) endpoints leveraging Google Cloud APIs. |
 
 ---
 
