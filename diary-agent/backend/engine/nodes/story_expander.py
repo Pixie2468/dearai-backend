@@ -18,11 +18,11 @@ from engine.prompts import (
     STORY_EXPANDER_REVISION_HUMAN,
     STORY_EXPANDER_SYSTEM,
 )
-from engine.state import EpisodeEngineState, ExpandedStory
+from engine.state import EntryEngineState, ExpandedStory
 
 
-def story_expander_node(state: EpisodeEngineState) -> dict:
-    """Expand a brief story idea into a rich, detailed story description.
+def story_expander_node(state: EntryEngineState) -> dict:
+    """Expand a brief chat history into a rich, detailed story description.
 
     On the first pass, generates a fresh expansion.
     On subsequent passes (after A2 rejection), uses accumulated feedback

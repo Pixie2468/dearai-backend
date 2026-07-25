@@ -1,8 +1,8 @@
-"""Node A3: Episode Planner.
+"""Node A3: Entry Planner.
 
-Generates a structured episode planner for the full story, breaking it into
-5-8 episodes with outlines, emotional arcs, cliffhanger ideas, and retention
-hooks per episode, tailored for 90-second vertical format.
+Generates a structured entry planner for the full story, breaking it into
+5-8 entrys with outlines, emotional arcs, emotional_peak ideas, and reflection
+hooks per entry, tailored for 90-second vertical format.
 
 On replan passes (triggered by A8 validation failure), incorporates targeted
 feedback to produce an improved plan.
@@ -18,17 +18,17 @@ from engine.prompts import (
     EPISODE_PLANNER_REPLAN_HUMAN,
     EPISODE_PLANNER_SYSTEM,
 )
-from engine.state import EpisodeEngineState, EpisodePlanner
+from engine.state import EntryEngineState, EntryPlanner
 
 
-def episode_planner_node(state: EpisodeEngineState) -> dict:
-    """Create a structured per-episode planner from the expanded story.
+def entry_planner_node(state: EntryEngineState) -> dict:
+    """Create a structured per-entry planner from the expanded story.
 
     On the first pass, generates a fresh plan.
     On subsequent passes (after A8 rejection), uses replan feedback
     to produce an improved version.
     """
-    model = get_model().with_structured_output(EpisodePlanner)
+    model = get_model().with_structured_output(EntryPlanner)
 
     task = state["task"]
     expanded_story = state["expanded_story"]
@@ -54,6 +54,6 @@ def episode_planner_node(state: EpisodeEngineState) -> dict:
         HumanMessage(content=human_content),
     ]
 
-    result: EpisodePlanner = model.invoke(messages)
+    result: EntryPlanner = model.invoke(messages)
 
-    return {"episode_planner": result}
+    return {"entry_planner": result}

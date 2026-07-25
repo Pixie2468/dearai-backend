@@ -1,4 +1,4 @@
-"""LangGraph graph builder for the Episodic Intelligence Engine.
+"""LangGraph graph builder for the Diary Intelligence Engine.
 
 New topology (A0–A8 pipeline with two conditional loops):
 
@@ -11,15 +11,15 @@ New topology (A0–A8 pipeline with two conditional loops):
          A2 (story_validator) ──[should_retry_story]
               │ (pass: score >= 8)
               ▼
-    ┌─> A3 (episode_planner) ◄──────────────────────────────┐
+    ┌─> A3 (entry_planner) ◄──────────────────────────────┐
     │         │                                              │
     │         ▼                                              │
-    │    A4 (episode_scripter)                               │
+    │    A4 (entry_scripter)                               │
     │         │                                              │
     │         ├──> A5 (emotional_arc_scorer) ──┐             │
-    │         └──> A6 (cliffhanger_scorer) ────┤             │
+    │         └──> A6 (emotional_peak_scorer) ────┤             │
     │                                          ▼             │
-    │                              A7 (retention_risk) ──────┤
+    │                              A7 (reflection_depth) ──────┤
     │                                          │             │
     │                                          ▼             │
     │                              A8 (final_validator) ─[should_replan]
@@ -43,16 +43,16 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from engine.nodes.cliffhanger_strength_scorer import cliffhanger_strength_scorer_node
+from engine.nodes.emotional_peak_strength_scorer import emotional_peak_strength_scorer_node
 from engine.nodes.emotional_arc_scorer import emotional_arc_scorer_node
-from engine.nodes.episode_planner import episode_planner_node
-from engine.nodes.episode_scripter import episode_scripter_node
+from engine.nodes.entry_planner import entry_planner_node
+from engine.nodes.entry_scripter import entry_scripter_node
 from engine.nodes.final_validator import final_validator_node
 from engine.nodes.input_classifier import input_classifier_node, story_validator_node
 from engine.nodes.optimizer import optimizer_node
-from engine.nodes.retention_risk_analyzer import retention_risk_analyzer_node
+from engine.nodes.reflection_depth_analyzer import reflection_depth_analyzer_node
 from engine.nodes.story_expander import story_expander_node
-from engine.state import EpisodeEngineState
+from engine.state import EntryEngineState
 
 
 # ---------------------------------------------------------------------------
@@ -61,8 +61,8 @@ from engine.state import EpisodeEngineState
 
 
 def _should_retry_story(
-    state: EpisodeEngineState,
-) -> Literal["story_expander", "episode_planner"]:
+    state: EntryEngineState,
+) -> Literal["story_expander", "entry_planner"]:
     """After A2 (story_validator): loop back to A1 or proceed to A3.
 
     Passes when the story validation score >= 8 OR the maximum number of
@@ -70,20 +70,20 @@ def _should_retry_story(
     """
     validation = state.get("story_validation")
     if validation is not None and validation.passed:
-        return "episode_planner"
+        return "entry_planner"
 
     revision = state.get("story_revision_number", 1)
     max_revisions = state.get("max_story_revisions", 3)
     if revision > max_revisions:
         # Exhausted retries — proceed with the best version we have
-        return "episode_planner"
+        return "entry_planner"
 
     return "story_expander"
 
 
 def _should_replan(
-    state: EpisodeEngineState,
-) -> Literal["episode_planner", "optimizer"]:
+    state: EntryEngineState,
+) -> Literal["entry_planner", "optimizer"]:
     """After A8 (final_validator): loop back to A3 or proceed to optimizer.
 
     Passes when the final validation average >= 7 OR the maximum number of
@@ -99,7 +99,7 @@ def _should_replan(
         # Exhausted retries — proceed with the best version we have
         return "optimizer"
 
-    return "episode_planner"
+    return "entry_planner"
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +108,7 @@ def _should_replan(
 
 
 def build_graph(checkpointer: InMemorySaver | None = None) -> CompiledStateGraph:
-    """Construct and compile the Episodic Intelligence Engine graph.
+    """Construct and compile the Diary Intelligence Engine graph.
 
     Args:
         checkpointer: Optional checkpointer for state persistence.
@@ -120,17 +120,17 @@ def build_graph(checkpointer: InMemorySaver | None = None) -> CompiledStateGraph
     if checkpointer is None:
         checkpointer = InMemorySaver()
 
-    builder = StateGraph(EpisodeEngineState)
+    builder = StateGraph(EntryEngineState)
 
     # --- Register all nodes ---
     builder.add_node("input_classifier", input_classifier_node)       # A0
     builder.add_node("story_expander", story_expander_node)           # A1
     builder.add_node("story_validator", story_validator_node)         # A2
-    builder.add_node("episode_planner", episode_planner_node)         # A3
-    builder.add_node("episode_scripter", episode_scripter_node)       # A4
+    builder.add_node("entry_planner", entry_planner_node)         # A3
+    builder.add_node("entry_scripter", entry_scripter_node)       # A4
     builder.add_node("emotional_arc_scorer", emotional_arc_scorer_node)           # A5
-    builder.add_node("cliffhanger_strength_scorer", cliffhanger_strength_scorer_node)  # A6
-    builder.add_node("retention_risk_analyzer", retention_risk_analyzer_node)      # A7
+    builder.add_node("emotional_peak_strength_scorer", emotional_peak_strength_scorer_node)  # A6
+    builder.add_node("reflection_depth_analyzer", reflection_depth_analyzer_node)      # A7
     builder.add_node("final_validator", final_validator_node)         # A8
     builder.add_node("optimizer", optimizer_node)                     # Recommendations
 
@@ -149,30 +149,30 @@ def build_graph(checkpointer: InMemorySaver | None = None) -> CompiledStateGraph
         _should_retry_story,
         {
             "story_expander": "story_expander",
-            "episode_planner": "episode_planner",
+            "entry_planner": "entry_planner",
         },
     )
 
     # --- A3 -> A4 ---
-    builder.add_edge("episode_planner", "episode_scripter")
+    builder.add_edge("entry_planner", "entry_scripter")
 
     # --- A4 -> parallel fan-out: A5 + A6 ---
-    builder.add_edge("episode_scripter", "emotional_arc_scorer")
-    builder.add_edge("episode_scripter", "cliffhanger_strength_scorer")
+    builder.add_edge("entry_scripter", "emotional_arc_scorer")
+    builder.add_edge("entry_scripter", "emotional_peak_strength_scorer")
 
     # --- Parallel fan-in: A5 + A6 -> A7 ---
-    builder.add_edge("emotional_arc_scorer", "retention_risk_analyzer")
-    builder.add_edge("cliffhanger_strength_scorer", "retention_risk_analyzer")
+    builder.add_edge("emotional_arc_scorer", "reflection_depth_analyzer")
+    builder.add_edge("emotional_peak_strength_scorer", "reflection_depth_analyzer")
 
     # --- A7 -> A8 ---
-    builder.add_edge("retention_risk_analyzer", "final_validator")
+    builder.add_edge("reflection_depth_analyzer", "final_validator")
 
     # --- A8 -> conditional: A3 (replan) or optimizer (pass) ---
     builder.add_conditional_edges(
         "final_validator",
         _should_replan,
         {
-            "episode_planner": "episode_planner",
+            "entry_planner": "entry_planner",
             "optimizer": "optimizer",
         },
     )

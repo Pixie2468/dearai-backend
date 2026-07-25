@@ -1,6 +1,6 @@
 """Node: Optimization Recommendation Engine.
 
-Synthesises all analysis data (emotional arc, retention risk, cliffhanger
+Synthesises all analysis data (emotional arc, reflection depth, emotional_peak
 scores) and produces prioritized, actionable recommendations for the user.
 This node is advisory-only — its output is presented to the user and does
 NOT feed back into an automatic revision loop.
@@ -12,26 +12,26 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from engine.llm import get_model
 from engine.prompts import OPTIMIZER_HUMAN, OPTIMIZER_SYSTEM
-from engine.state import EpisodeEngineState, OptimizationReport
+from engine.state import EntryEngineState, OptimizationReport
 
 
-def optimizer_node(state: EpisodeEngineState) -> dict:
+def optimizer_node(state: EntryEngineState) -> dict:
     """Generate advisory recommendations based on all analysis results."""
     model = get_model().with_structured_output(OptimizationReport)
 
-    episode_scripts = state["episode_scripts"]
+    entry_scripts = state["entry_scripts"]
     emotional_arc = state["emotional_arc"]
-    retention_analysis = state["retention_analysis"]
-    cliffhanger_analysis = state["cliffhanger_analysis"]
+    reflection_analysis = state["reflection_analysis"]
+    emotional_peak_analysis = state["emotional_peak_analysis"]
 
     messages = [
         SystemMessage(content=OPTIMIZER_SYSTEM),
         HumanMessage(
             content=OPTIMIZER_HUMAN.format(
-                scripts_json=episode_scripts.model_dump_json(indent=2),
+                scripts_json=entry_scripts.model_dump_json(indent=2),
                 emotional_arc_json=emotional_arc.model_dump_json(indent=2),
-                retention_json=retention_analysis.model_dump_json(indent=2),
-                cliffhanger_json=cliffhanger_analysis.model_dump_json(indent=2),
+                reflection_json=reflection_analysis.model_dump_json(indent=2),
+                emotional_peak_json=emotional_peak_analysis.model_dump_json(indent=2),
             )
         ),
     ]

@@ -1,4 +1,4 @@
-"""LLM factory for the Episodic Intelligence Engine.
+"""LLM factory for the Diary Intelligence Engine.
 
 Uses langchain-google-genai with Vertex AI backend via ADC or service account.
 

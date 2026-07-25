@@ -13,14 +13,14 @@ from app.db import Base
 
 
 class AnalysisRun(Base):
-    """Persisted record of a single episodic intelligence analysis."""
+    """Persisted record of a single diary intelligence analysis."""
 
     __tablename__ = "analysis_runs"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    story_idea: Mapped[str] = mapped_column(Text, nullable=False)
+    chat_history: Mapped[str] = mapped_column(Text, nullable=False)
     request_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
     response_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -30,4 +30,4 @@ class AnalysisRun(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<AnalysisRun id={self.id} story_idea={self.story_idea[:40]!r}>"
+        return f"<AnalysisRun id={self.id} chat_history={self.chat_history[:40]!r}>"

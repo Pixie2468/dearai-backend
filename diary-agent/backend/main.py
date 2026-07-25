@@ -26,10 +26,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Episodic Intelligence Engine",
+    title="Diary Intelligence Engine",
     description=(
-        "AI-powered API that decomposes story ideas into optimised "
-        "multi-episode arcs for 90-second vertical video."
+        "AI-powered API that decomposes chat historys into optimised "
+        "multi-entry arcs for 90-second diary format."
     ),
     version="1.0.0",
 )

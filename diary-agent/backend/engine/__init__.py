@@ -1,4 +1,4 @@
-"""Episodic Intelligence Engine - AI-powered vertical storytelling analyzer."""
+"""Diary Intelligence Engine - AI-powered vertical storytelling analyzer."""
 
 from engine.graph import build_graph
 

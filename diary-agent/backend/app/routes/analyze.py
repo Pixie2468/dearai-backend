@@ -1,4 +1,4 @@
-"""POST /episodic-intelligence/analyze — run the LangGraph agent and return structured results."""
+"""POST /diary-intelligence/analyze — run the LangGraph agent and return structured results."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from engine.graph import build_graph
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/episodic-intelligence", tags=["analysis"])
+router = APIRouter(prefix="/diary-intelligence", tags=["analysis"])
 
 # Build the graph once at module level (stateless; state lives in the checkpointer).
 _graph = build_graph()
@@ -27,16 +27,16 @@ _graph = build_graph()
 
 def _build_task_string(request: AnalyzeRequest) -> str:
     """Build the task string from the request fields."""
-    task_parts: list[str] = [request.story_idea]
+    task_parts: list[str] = [request.chat_history]
     if request.genre:
         task_parts.append(f"Genre: {request.genre}")
     if request.target_audience:
         task_parts.append(f"Target audience: {request.target_audience}")
     if request.tone:
         task_parts.append(f"Tone: {request.tone}")
-    if request.episode_count_preference:
+    if request.entry_count_preference:
         task_parts.append(
-            f"Preferred episode count: {request.episode_count_preference}"
+            f"Preferred entry count: {request.entry_count_preference}"
         )
     return "\n".join(task_parts)
 
@@ -45,10 +45,10 @@ def _build_initial_state(request: AnalyzeRequest) -> dict:
     """Build the initial LangGraph state dict from a request."""
     return {
         "task": _build_task_string(request),
-        "episode_planner": None,
+        "entry_planner": None,
         "emotional_arc": None,
-        "retention_analysis": None,
-        "cliffhanger_analysis": None,
+        "reflection_analysis": None,
+        "emotional_peak_analysis": None,
         "optimization_report": None,
         # Loop controls — wire the user's max_revisions to both loops
         "story_revision_number": 1,
@@ -75,13 +75,13 @@ def _build_response(
     return (
         AnalyzeResponse(
             run_id=run_id,
-            story_idea=request.story_idea,
+            chat_history=request.chat_history,
             revisions_completed=final_state.get("pipeline_revision_number", 1) - 1,
-            episode_planner=final_state["episode_planner"],
-            episode_scripts=final_state["episode_scripts"],
+            entry_planner=final_state["entry_planner"],
+            entry_scripts=final_state["entry_scripts"],
             emotional_arc=final_state["emotional_arc"],
-            retention_analysis=final_state["retention_analysis"],
-            cliffhanger_analysis=final_state["cliffhanger_analysis"],
+            reflection_analysis=final_state["reflection_analysis"],
+            emotional_peak_analysis=final_state["emotional_peak_analysis"],
             optimization_report=final_state["optimization_report"],
             created_at=now,
         ),
@@ -100,7 +100,7 @@ def _persist_run(
     """Persist an analysis run to the database (best-effort)."""
     run = AnalysisRun(
         id=run_id,
-        story_idea=request.story_idea,
+        chat_history=request.chat_history,
         request_payload=request.model_dump(mode="json"),
         response_payload=response.model_dump(mode="json"),
         created_at=now,
@@ -119,7 +119,7 @@ def analyze_story(
     request: AnalyzeRequest,
     db: Session = Depends(get_db),
 ) -> AnalyzeResponse:
-    """Run the Episodic Intelligence Engine on a story idea.
+    """Run the Diary Intelligence Engine on a chat history.
 
     This is a synchronous endpoint — it blocks until the full LangGraph
     pipeline (decompose -> analyse x3 in parallel -> optimise -> repeat)
@@ -133,7 +133,7 @@ def analyze_story(
 
     logger.info(
         "Starting analysis for story=%r  max_revisions=%d  thread=%s",
-        request.story_idea[:80],
+        request.chat_history[:80],
         request.max_revisions,
         thread_id,
     )
@@ -148,20 +148,20 @@ def analyze_story(
         )
 
     # Extract structured results from the final state.
-    episode_planner = final_state.get("episode_planner")
-    episode_scripts = final_state.get("episode_scripts")
+    entry_planner = final_state.get("entry_planner")
+    entry_scripts = final_state.get("entry_scripts")
     emotional_arc = final_state.get("emotional_arc")
-    retention_analysis = final_state.get("retention_analysis")
-    cliffhanger_analysis = final_state.get("cliffhanger_analysis")
+    reflection_analysis = final_state.get("reflection_analysis")
+    emotional_peak_analysis = final_state.get("emotional_peak_analysis")
     optimization_report = final_state.get("optimization_report")
 
     if not all(
         [
-            episode_planner,
-            episode_scripts,
+            entry_planner,
+            entry_scripts,
             emotional_arc,
-            retention_analysis,
-            cliffhanger_analysis,
+            reflection_analysis,
+            emotional_peak_analysis,
             optimization_report,
         ]
     ):
@@ -248,7 +248,7 @@ async def analyze_story_stream(
 
     logger.info(
         "Starting streaming analysis for story=%r  max_revisions=%d  thread=%s",
-        request.story_idea[:80],
+        request.chat_history[:80],
         request.max_revisions,
         thread_id,
     )
@@ -374,11 +374,11 @@ async def analyze_story_stream(
 
         # Validate completeness.
         required_keys = [
-            "episode_planner",
-            "episode_scripts",
+            "entry_planner",
+            "entry_scripts",
             "emotional_arc",
-            "retention_analysis",
-            "cliffhanger_analysis",
+            "reflection_analysis",
+            "emotional_peak_analysis",
             "optimization_report",
         ]
         if not all(final_state.get(k) for k in required_keys):

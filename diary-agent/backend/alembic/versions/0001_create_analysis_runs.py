@@ -23,7 +23,7 @@ def upgrade() -> None:
     op.create_table(
         "analysis_runs",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("story_idea", sa.Text(), nullable=False),
+        sa.Column("chat_history", sa.Text(), nullable=False),
         sa.Column("request_payload", postgresql.JSONB(), nullable=False),
         sa.Column("response_payload", postgresql.JSONB(), nullable=False),
         sa.Column(

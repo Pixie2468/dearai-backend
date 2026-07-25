@@ -1,6 +1,6 @@
-# StoryFlow
+# DiaryFlow
 
-AI-powered Episodic Intelligence Engine that takes a raw story idea and decomposes it into optimized multi-episode arcs for 90-second vertical video (TikTok/Reels/Shorts). Analyzes emotional progression, retention risk, cliffhanger strength, and generates structured optimization suggestions.
+AI-powered Diary Intelligence Engine that takes a raw chat history and decomposes it into optimized multi-entry arcs for 90-second diary format (TikTok/Reels/Shorts). Analyzes emotional progression, reflection depth, emotional_peak strength, and generates structured optimization suggestions.
 
 ## Architecture
 
@@ -9,7 +9,7 @@ frontend/         (React SPA — Vite + Tailwind)
        |                        or
 frontend/app.py   (Streamlit UI — legacy/prototyping)
        |
-       | POST /episodic-intelligence/analyze/stream  (SSE)
+       | POST /diary-intelligence/analyze/stream  (SSE)
        v
 backend/main.py   (FastAPI + CORS + optional SPA serving)
        |
@@ -34,15 +34,15 @@ START -> A0 (input_classifier)
          A2 (story_validator) --[should_retry_story]
               | (pass: score >= 8)
               v
-    +-> A3 (episode_planner) <---------------------------+
+    +-> A3 (entry_planner) <---------------------------+
     |         |                                          |
     |         v                                          |
-    |    A4 (episode_scripter)                           |
+    |    A4 (entry_scripter)                           |
     |         |                                          |
     |         +--> A5 (emotional_arc_scorer) --+          |
-    |         +--> A6 (cliffhanger_scorer) ----+          |
+    |         +--> A6 (emotional_peak_scorer) ----+          |
     |                                          v          |
-    |                          A7 (retention_risk) -------+
+    |                          A7 (reflection_depth) -------+
     |                                          |          |
     |                                          v          |
     |                          A8 (final_validator) -[should_replan]
@@ -155,7 +155,7 @@ make frontend-dev     # Vite dev server with API proxy
 make frontend-build   # Production build to frontend/dist/
 ```
 
-The Vite dev server proxies `/episodic-intelligence` and `/health` requests to `http://localhost:8000`.
+The Vite dev server proxies `/diary-intelligence` and `/health` requests to `http://localhost:8000`.
 
 **Streamlit frontend (legacy/prototyping):**
 
@@ -197,7 +197,7 @@ Set the `FLY_API_TOKEN` secret in your GitHub repository settings.
 
 Liveness probe. Returns `{"status": "ok"}`.
 
-### `POST /episodic-intelligence/analyze`
+### `POST /diary-intelligence/analyze`
 
 Runs the full LangGraph pipeline synchronously and returns structured results. This endpoint blocks until completion (1-3 minutes typical).
 
@@ -205,22 +205,22 @@ Runs the full LangGraph pipeline synchronously and returns structured results. T
 
 ```json
 {
-  "story_idea": "A broke food-delivery rider discovers that one customer is leaving clues to a missing sister case.",
+  "chat_history": "A broke food-delivery rider discovers that one customer is leaving clues to a missing sister case.",
   "genre": "thriller",
   "target_audience": "18-30 mobile-first viewers",
   "tone": "tense",
-  "episode_count_preference": 6,
+  "entry_count_preference": 6,
   "max_revisions": 2
 }
 ```
 
 | Field                      | Type   | Default                     | Description                                  |
 |----------------------------|--------|-----------------------------|----------------------------------------------|
-| `story_idea`               | string | (required)                  | The raw story idea to analyze                |
+| `chat_history`               | string | (required)                  | The raw chat history to analyze                |
 | `genre`                    | string | `""`                        | Genre hint (e.g. thriller)                   |
 | `target_audience`          | string | `"18-30 mobile-first viewers"` | Target audience description               |
 | `tone`                     | string | `""`                        | Desired tone (e.g. tense)                    |
-| `episode_count_preference` | int    | `6`                         | Number of episodes (5-8)                     |
+| `entry_count_preference` | int    | `6`                         | Number of entrys (5-8)                     |
 | `max_revisions`            | int    | `2`                         | Max revision loops for both story and pipeline (1-5) |
 
 **Response:**
@@ -228,19 +228,19 @@ Runs the full LangGraph pipeline synchronously and returns structured results. T
 Returns a JSON object with:
 
 - `run_id` — UUID for this analysis run
-- `story_idea` — echoed back
+- `chat_history` — echoed back
 - `revisions_completed` — number of pipeline revision passes completed
-- `episode_planner` — structured episode plan (episodes with outlines, emotional arc notes, cliffhanger ideas, retention hooks)
-- `episode_scripts` — full narrative voiceover scripts per episode with scene directions and continuity notes
-- `emotional_arc` — per-episode emotion beats, coherence score, tension curve
-- `retention_analysis` — per-episode retention scores, risk zones, suggested fixes
-- `cliffhanger_analysis` — per-episode cliffhanger scores with curiosity/stakes/emotional breakdown
-- `optimization_report` — quality scores, top priorities, per-episode suggestions
+- `entry_planner` — structured entry plan (entrys with outlines, emotional arc notes, emotional_peak ideas, reflection hooks)
+- `entry_scripts` — full narrative voiceover scripts per entry with scene directions and continuity notes
+- `emotional_arc` — per-entry emotion beats, coherence score, tension curve
+- `reflection_analysis` — per-entry reflection scores, risk zones, suggested fixes
+- `emotional_peak_analysis` — per-entry emotional_peak scores with curiosity/stakes/emotional breakdown
+- `optimization_report` — quality scores, top priorities, per-entry suggestions
 - `created_at` — timestamp
 
 Each analysis run is persisted to the `analysis_runs` table in PostgreSQL.
 
-### `POST /episodic-intelligence/analyze/stream`
+### `POST /diary-intelligence/analyze/stream`
 
 Streaming variant that emits [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) (SSE) as each LangGraph node starts and completes. Same request body as `/analyze`. Both the React and Streamlit frontends use this endpoint.
 
@@ -277,7 +277,7 @@ event: progress
 data: {"node": "story_validator", "status": "completed"}
 
 event: progress
-data: {"node": "episode_planner", "status": "started"}
+data: {"node": "entry_planner", "status": "started"}
 
 ...
 
@@ -285,12 +285,12 @@ event: progress
 data: {"node": "emotional_arc_scorer", "status": "started"}
 
 event: progress
-data: {"node": "cliffhanger_strength_scorer", "status": "started"}
+data: {"node": "emotional_peak_strength_scorer", "status": "started"}
 
 ...
 
 event: complete
-data: {"run_id": "...", "episode_planner": {...}, "episode_scripts": {...}, ...}
+data: {"run_id": "...", "entry_planner": {...}, "entry_scripts": {...}, ...}
 ```
 
 ### Interactive docs
@@ -328,7 +328,7 @@ Story-Flow/
 │   │   ├── models.py                 # ORM models (AnalysisRun)
 │   │   ├── schemas.py                # API request/response schemas
 │   │   └── routes/
-│   │       └── analyze.py            # /episodic-intelligence/* endpoints
+│   │       └── analyze.py            # /diary-intelligence/* endpoints
 │   │
 │   ├── engine/                       # AI pipeline layer
 │   │   ├── graph.py                  # LangGraph graph builder (10 nodes, 2 loops)
@@ -341,11 +341,11 @@ Story-Flow/
 │   │   └── nodes/                    # Individual pipeline nodes
 │   │       ├── input_classifier.py   # A0: Input classification + A2: Story validator
 │   │       ├── story_expander.py     # A1: Idea to narrative expansion
-│   │       ├── episode_planner.py    # A3: Episode outline planning
-│   │       ├── episode_scripter.py   # A4: Script generation
+│   │       ├── entry_planner.py    # A3: Entry outline planning
+│   │       ├── entry_scripter.py   # A4: Script generation
 │   │       ├── emotional_arc_scorer.py       # A5: Emotional arc analysis
-│   │       ├── cliffhanger_strength_scorer.py # A6: Cliffhanger scoring
-│   │       ├── retention_risk_analyzer.py    # A7: Retention risk prediction
+│   │       ├── emotional_peak_strength_scorer.py # A6: Emotional Peak scoring
+│   │       ├── reflection_depth_analyzer.py    # A7: Retention risk prediction
 │   │       ├── final_validator.py    # A8: Quality gate
 │   │       └── optimizer.py          # Advisory optimization suggestions
 │   │

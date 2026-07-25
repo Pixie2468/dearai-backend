@@ -19,10 +19,10 @@ from engine.prompts import (
     STORY_VALIDATOR_HUMAN,
     STORY_VALIDATOR_SYSTEM,
 )
-from engine.state import EpisodeEngineState, InputClassification, StoryValidation
+from engine.state import EntryEngineState, InputClassification, StoryValidation
 
 
-def input_classifier_node(state: EpisodeEngineState) -> dict:
+def input_classifier_node(state: EntryEngineState) -> dict:
     """Classify user input as a one-liner idea or a detailed story outline using an LLM."""
     model = get_model().with_structured_output(InputClassification)
 
@@ -38,7 +38,7 @@ def input_classifier_node(state: EpisodeEngineState) -> dict:
     return {"input_classification": result}
 
 
-def story_validator_node(state: EpisodeEngineState) -> dict:
+def story_validator_node(state: EntryEngineState) -> dict:
     """Validate the expanded story from A1 for quality and readiness.
 
     If score >= 8, the story passes. Otherwise, feedback is accumulated

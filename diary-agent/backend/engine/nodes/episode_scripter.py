@@ -1,8 +1,8 @@
-"""Node A4: Episode Scripter.
+"""Node A4: Entry Scripter.
 
-Creates detailed episode scripts based on the planner, generating text
-scripts for each episode while maintaining continuity, vertical-friendly
-pacing, and word limits for 90 seconds (~225 words per episode).
+Creates detailed entry scripts based on the planner, generating text
+scripts for each entry while maintaining continuity, vertical-friendly
+pacing, and word limits for 90 seconds (~225 words per entry).
 """
 
 from __future__ import annotations
@@ -11,14 +11,14 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from engine.llm import get_model
 from engine.prompts import EPISODE_SCRIPTER_HUMAN, EPISODE_SCRIPTER_SYSTEM
-from engine.state import EpisodeEngineState, EpisodeScripts
+from engine.state import EntryEngineState, EntryScripts
 
 
-def episode_scripter_node(state: EpisodeEngineState) -> dict:
-    """Generate full scripts for every episode from the episode planner."""
-    model = get_model().with_structured_output(EpisodeScripts)
+def entry_scripter_node(state: EntryEngineState) -> dict:
+    """Generate full scripts for every entry from the entry planner."""
+    model = get_model().with_structured_output(EntryScripts)
 
-    planner = state["episode_planner"]
+    planner = state["entry_planner"]
     planner_json = planner.model_dump_json(indent=2)
 
     messages = [
@@ -28,6 +28,6 @@ def episode_scripter_node(state: EpisodeEngineState) -> dict:
         ),
     ]
 
-    result: EpisodeScripts = model.invoke(messages)
+    result: EntryScripts = model.invoke(messages)
 
-    return {"episode_scripts": result}
+    return {"entry_scripts": result}

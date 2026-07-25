@@ -1,6 +1,6 @@
 """Node A5: Emotional Arc Scorer.
 
-Analyzes and scores the emotional arc for the full story and each episode
+Analyzes and scores the emotional arc for the full story and each entry
 based on actual scripts, identifying emotion shifts, variance (1-10),
 and flat zones where engagement might drop.
 """
@@ -11,14 +11,14 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from engine.llm import get_model
 from engine.prompts import EMOTIONAL_ARC_SCORER_HUMAN, EMOTIONAL_ARC_SCORER_SYSTEM
-from engine.state import EmotionalArc, EpisodeEngineState
+from engine.state import EmotionalArc, EntryEngineState
 
 
-def emotional_arc_scorer_node(state: EpisodeEngineState) -> dict:
-    """Analyse the emotional progression of episode scripts."""
+def emotional_arc_scorer_node(state: EntryEngineState) -> dict:
+    """Analyse the emotional progression of entry scripts."""
     model = get_model().with_structured_output(EmotionalArc)
 
-    scripts = state["episode_scripts"]
+    scripts = state["entry_scripts"]
     scripts_json = scripts.model_dump_json(indent=2)
 
     messages = [

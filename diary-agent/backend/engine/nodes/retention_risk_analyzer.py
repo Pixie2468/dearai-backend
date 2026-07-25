@@ -1,8 +1,8 @@
 """Node A7: Retention Risk Analyzer.
 
-Provides retention risk analysis for each episode on a 1-10 scale,
+Provides reflection depth analysis for each entry on a 1-10 scale,
 predicting drop-off zones (0-30s, 30-60s, 60-90s) based on pacing,
-emotional flow, and cliffhanger effectiveness.
+emotional flow, and emotional_peak effectiveness.
 """
 
 from __future__ import annotations
@@ -14,16 +14,16 @@ from engine.prompts import (
     RETENTION_RISK_ANALYZER_HUMAN,
     RETENTION_RISK_ANALYZER_SYSTEM,
 )
-from engine.state import EpisodeEngineState, RetentionAnalysis
+from engine.state import EntryEngineState, RetentionAnalysis
 
 
-def retention_risk_analyzer_node(state: EpisodeEngineState) -> dict:
-    """Predict retention risk per episode using scripts and prior analyses."""
+def reflection_depth_analyzer_node(state: EntryEngineState) -> dict:
+    """Predict reflection depth per entry using scripts and prior analyses."""
     model = get_model().with_structured_output(RetentionAnalysis)
 
-    scripts = state["episode_scripts"]
+    scripts = state["entry_scripts"]
     emotional_arc = state["emotional_arc"]
-    cliffhanger_analysis = state["cliffhanger_analysis"]
+    emotional_peak_analysis = state["emotional_peak_analysis"]
 
     messages = [
         SystemMessage(content=RETENTION_RISK_ANALYZER_SYSTEM),
@@ -31,11 +31,11 @@ def retention_risk_analyzer_node(state: EpisodeEngineState) -> dict:
             content=RETENTION_RISK_ANALYZER_HUMAN.format(
                 scripts_json=scripts.model_dump_json(indent=2),
                 emotional_arc_json=emotional_arc.model_dump_json(indent=2),
-                cliffhanger_json=cliffhanger_analysis.model_dump_json(indent=2),
+                emotional_peak_json=emotional_peak_analysis.model_dump_json(indent=2),
             )
         ),
     ]
 
     result: RetentionAnalysis = model.invoke(messages)
 
-    return {"retention_analysis": result}
+    return {"reflection_analysis": result}

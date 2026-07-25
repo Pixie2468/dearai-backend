@@ -8,10 +8,10 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from engine.state import (
-    CliffhangerAnalysis,
+    Emotional PeakAnalysis,
     EmotionalArc,
-    EpisodePlanner,
-    EpisodeScripts,
+    EntryPlanner,
+    EntryScripts,
     OptimizationReport,
     RetentionAnalysis,
 )
@@ -23,10 +23,10 @@ from engine.state import (
 
 
 class AnalyzeRequest(BaseModel):
-    """Payload for POST /episodic-intelligence/analyze."""
+    """Payload for POST /diary-intelligence/analyze."""
 
-    story_idea: str = Field(
-        ..., description="The raw story idea to analyze", min_length=1
+    chat_history: str = Field(
+        ..., description="The raw chat history to analyze", min_length=1
     )
     genre: str = Field(default="", description="Genre hint (e.g. thriller, romance)")
     target_audience: str = Field(
@@ -34,11 +34,11 @@ class AnalyzeRequest(BaseModel):
         description="Target audience description",
     )
     tone: str = Field(default="", description="Desired tone (e.g. tense, humorous)")
-    episode_count_preference: int = Field(
+    entry_count_preference: int = Field(
         default=6,
         ge=5,
         le=8,
-        description="Preferred number of episodes (5-8)",
+        description="Preferred number of entrys (5-8)",
     )
     max_revisions: int = Field(
         default=2,
@@ -57,13 +57,13 @@ class AnalyzeResponse(BaseModel):
     """Structured response returned by the analysis endpoint."""
 
     run_id: uuid.UUID = Field(description="Unique identifier for this analysis run")
-    story_idea: str
+    chat_history: str
     revisions_completed: int
-    episode_planner: EpisodePlanner
-    episode_scripts: EpisodeScripts
+    entry_planner: EntryPlanner
+    entry_scripts: EntryScripts
     emotional_arc: EmotionalArc
-    retention_analysis: RetentionAnalysis
-    cliffhanger_analysis: CliffhangerAnalysis
+    reflection_analysis: RetentionAnalysis
+    emotional_peak_analysis: Emotional PeakAnalysis
     optimization_report: OptimizationReport
     created_at: datetime
 

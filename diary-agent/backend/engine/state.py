@@ -1,4 +1,4 @@
-"""State schema and Pydantic models for the Episodic Intelligence Engine."""
+"""State schema and Pydantic models for the Diary Intelligence Engine."""
 
 from __future__ import annotations
 
@@ -16,10 +16,10 @@ from typing_extensions import TypedDict
 
 
 class EmotionBeat(BaseModel):
-    """A single emotional beat within an episode."""
+    """A single emotional beat within an entry."""
 
     timestamp_range: str = Field(
-        description="Approximate time range within the 90s episode (e.g. '0-15s', '45-60s')"
+        description="Approximate time range within the 90s entry (e.g. '0-15s', '45-60s')"
     )
     emotion: str = Field(
         description="Primary emotion at this beat (e.g. curiosity, fear, hope, shock, sadness)"
@@ -27,15 +27,15 @@ class EmotionBeat(BaseModel):
     intensity: int = Field(description="Emotion intensity on a 1-10 scale", ge=1, le=10)
 
 
-class EpisodeEmotionProfile(BaseModel):
-    """Emotional profile for a single episode."""
+class EntryEmotionProfile(BaseModel):
+    """Emotional profile for a single entry."""
 
-    episode_number: int
+    entry_number: int
     emotion_beats: list[EmotionBeat] = Field(
-        description="Sequence of emotional beats through the episode"
+        description="Sequence of emotional beats through the entry"
     )
     dominant_emotion: str = Field(
-        description="The single most prominent emotion in this episode"
+        description="The single most prominent emotion in this entry"
     )
     emotional_range: int = Field(
         description="How wide the emotional range is (1=flat, 10=extreme swings)",
@@ -45,16 +45,16 @@ class EpisodeEmotionProfile(BaseModel):
 
 
 class EmotionalArc(BaseModel):
-    """Full emotional arc analysis across all episodes."""
+    """Full emotional arc analysis across all entrys."""
 
-    episodes: list[EpisodeEmotionProfile] = Field(
-        description="Per-episode emotional profiles"
+    entrys: list[EntryEmotionProfile] = Field(
+        description="Per-entry emotional profiles"
     )
     overall_progression: str = Field(
         description="Narrative description of how emotions progress across the full arc"
     )
     emotional_coherence_score: int = Field(
-        description="How well emotions flow between episodes (1-10)", ge=1, le=10
+        description="How well emotions flow between entrys (1-10)", ge=1, le=10
     )
     tension_curve_description: str = Field(
         description="Description of the overall tension curve shape"
@@ -65,13 +65,13 @@ class EmotionalArc(BaseModel):
 
 
 class RiskZone(BaseModel):
-    """A specific zone within an episode where viewer drop-off is likely."""
+    """A specific zone within an entry where viewer drop-off is likely."""
 
     timestamp_range: str = Field(
         description="Time range where drop-off risk exists (e.g. '20-35s')"
     )
     risk_level: Literal["low", "medium", "high", "critical"] = Field(
-        description="Severity of the retention risk"
+        description="Severity of the reflection depth"
     )
     reason: str = Field(description="Why viewers might drop off at this point")
     suggested_fix: str = Field(
@@ -79,12 +79,12 @@ class RiskZone(BaseModel):
     )
 
 
-class EpisodeRetentionRisk(BaseModel):
-    """Retention risk analysis for a single episode."""
+class EntryRetentionRisk(BaseModel):
+    """Retention risk analysis for a single entry."""
 
-    episode_number: int
-    overall_retention_score: int = Field(
-        description="Predicted retention score 0-100 (100=everyone stays)", ge=0, le=100
+    entry_number: int
+    overall_reflection_score: int = Field(
+        description="Predicted reflection score 0-100 (100=everyone stays)", ge=0, le=100
     )
     risk_zones: list[RiskZone] = Field(
         description="Specific time ranges with drop-off risk"
@@ -93,37 +93,37 @@ class EpisodeRetentionRisk(BaseModel):
         description="How strong the opening hook is (1-10)", ge=1, le=10
     )
     pacing_score: int = Field(
-        description="How well-paced the episode is (1-10)", ge=1, le=10
+        description="How well-paced the entry is (1-10)", ge=1, le=10
     )
 
 
 class RetentionAnalysis(BaseModel):
-    """Full retention risk analysis across all episodes."""
+    """Full reflection depth analysis across all entrys."""
 
-    episodes: list[EpisodeRetentionRisk] = Field(
-        description="Per-episode retention analysis"
+    entrys: list[EntryRetentionRisk] = Field(
+        description="Per-entry reflection analysis"
     )
-    weakest_episode: int = Field(
-        description="Episode number with the lowest retention score"
+    weakest_entry: int = Field(
+        description="Entry number with the lowest reflection score"
     )
-    strongest_episode: int = Field(
-        description="Episode number with the highest retention score"
+    strongest_entry: int = Field(
+        description="Entry number with the highest reflection score"
     )
-    overall_series_retention_prediction: str = Field(
+    overall_series_reflection_prediction: str = Field(
         description="Prediction of how many viewers who start ep 1 will finish the series"
     )
 
 
-# --- Cliffhanger models ---
+# --- Emotional Peak models ---
 
 
-class CliffhangerScore(BaseModel):
-    """Cliffhanger quality assessment for a single episode."""
+class Emotional PeakScore(BaseModel):
+    """Emotional Peak quality assessment for a single entry."""
 
-    episode_number: int
-    score: int = Field(description="Cliffhanger strength score (1-10)", ge=1, le=10)
-    cliffhanger_type: str = Field(
-        description="Type of cliffhanger (e.g. Question, Danger, Revelation, Emotional, Decision, Twist)"
+    entry_number: int
+    score: int = Field(description="Emotional Peak strength score (1-10)", ge=1, le=10)
+    emotional_peak_type: str = Field(
+        description="Type of emotional_peak (e.g. Question, Danger, Revelation, Emotional, Decision, Twist)"
     )
     curiosity_gap: int = Field(
         description="How strong the curiosity gap is (1-10)", ge=1, le=10
@@ -132,25 +132,25 @@ class CliffhangerScore(BaseModel):
         description="How high the stakes feel (1-10)", ge=1, le=10
     )
     emotional_charge: int = Field(
-        description="Emotional impact of the cliffhanger (1-10)", ge=1, le=10
+        description="Emotional impact of the emotional_peak (1-10)", ge=1, le=10
     )
     reasoning: str = Field(
-        description="Explanation of why this cliffhanger works or doesn't"
+        description="Explanation of why this emotional_peak works or doesn't"
     )
 
 
-class CliffhangerAnalysis(BaseModel):
-    """Full cliffhanger analysis across all episodes."""
+class Emotional PeakAnalysis(BaseModel):
+    """Full emotional_peak analysis across all entrys."""
 
-    scores: list[CliffhangerScore] = Field(description="Per-episode cliffhanger scores")
+    scores: list[Emotional PeakScore] = Field(description="Per-entry emotional_peak scores")
     average_score: float = Field(
-        description="Average cliffhanger score across all episodes"
+        description="Average emotional_peak score across all entrys"
     )
-    weakest_cliffhanger: int = Field(
-        description="Episode number with the weakest cliffhanger"
+    weakest_emotional_peak: int = Field(
+        description="Entry number with the weakest emotional_peak"
     )
-    strongest_cliffhanger: int = Field(
-        description="Episode number with the strongest cliffhanger"
+    strongest_emotional_peak: int = Field(
+        description="Entry number with the strongest emotional_peak"
     )
 
 
@@ -221,19 +221,19 @@ class FinalValidation(BaseModel):
         description="Weighted average quality score across all analyses (1-10)"
     )
     script_quality_score: int = Field(
-        description="Quality score for the episode scripts (1-10)", ge=1, le=10
+        description="Quality score for the entry scripts (1-10)", ge=1, le=10
     )
     emotional_arc_score: int = Field(
         description="Quality score for the emotional arc analysis (1-10)", ge=1, le=10
     )
-    cliffhanger_score: int = Field(
-        description="Average cliffhanger strength across episodes (1-10)", ge=1, le=10
+    emotional_peak_score: int = Field(
+        description="Average emotional_peak strength across entrys (1-10)", ge=1, le=10
     )
-    retention_score: int = Field(
-        description="Average retention score across episodes (1-10)", ge=1, le=10
+    reflection_score: int = Field(
+        description="Average reflection score across entrys (1-10)", ge=1, le=10
     )
     replan_instructions: str = Field(
-        description="Targeted feedback for replanning if failed (e.g. 'Strengthen cliffhangers in episodes 3-5'); empty when passed"
+        description="Targeted feedback for replanning if failed (e.g. 'Strengthen emotional_peaks in entrys 3-5'); empty when passed"
     )
 
 
@@ -258,22 +258,22 @@ class ExpandedStory(BaseModel):
     )
 
 
-# --- Episode Planner (A3) ---
+# --- Entry Planner (A3) ---
 
 
-class PlannedEpisode(BaseModel):
-    """A single episode entry in the episode planner."""
+class PlannedEntry(BaseModel):
+    """A single entry entry in the entry planner."""
 
-    episode_number: int = Field(description="Episode number (1-based)")
-    title: str = Field(description="Short, punchy episode title")
-    outline: str = Field(description="Concise outline of what happens in this episode")
+    entry_number: int = Field(description="Entry number (1-based)")
+    title: str = Field(description="Short, punchy entry title")
+    outline: str = Field(description="Concise outline of what happens in this entry")
     emotional_arc_notes: str = Field(
-        description="Expected emotional trajectory within this episode"
+        description="Expected emotional trajectory within this entry"
     )
-    cliffhanger_idea: str = Field(
-        description="The planned cliffhanger or hook for the episode ending"
+    emotional_peak_idea: str = Field(
+        description="The planned emotional_peak or hook for the entry ending"
     )
-    retention_hooks: list[str] = Field(
+    reflection_hooks: list[str] = Field(
         description="Specific moments designed to keep viewers watching"
     )
     estimated_word_count: int = Field(
@@ -282,48 +282,48 @@ class PlannedEpisode(BaseModel):
     )
 
 
-class EpisodePlanner(BaseModel):
-    """Full episode planner for the story."""
+class EntryPlanner(BaseModel):
+    """Full entry planner for the story."""
 
-    total_episodes: int = Field(description="Total number of episodes (5-8)")
+    total_entrys: int = Field(description="Total number of entrys (5-8)")
     overall_narrative_arc: str = Field(
         description="The overarching narrative arc type and description"
     )
     target_audience: str = Field(description="Intended audience for this content")
-    episodes: list[PlannedEpisode] = Field(
-        description="The ordered list of planned episodes"
+    entrys: list[PlannedEntry] = Field(
+        description="The ordered list of planned entrys"
     )
 
 
-# --- Episode Scripts (A4) ---
+# --- Entry Scripts (A4) ---
 
 
-class EpisodeScript(BaseModel):
-    """A single episode script."""
+class EntryScript(BaseModel):
+    """A single entry script."""
 
-    episode_number: int = Field(description="Episode number (1-based)")
-    title: str = Field(description="Episode title")
+    entry_number: int = Field(description="Entry number (1-based)")
+    title: str = Field(description="Entry title")
     script: str = Field(
-        description="The full episode narrative voiceover script (~225 words for 90 seconds). Third-person narration, no direct dialogue."
+        description="The full entry narrative voiceover script (~225 words for 90 seconds). Third-person narration, no direct dialogue."
     )
     word_count: int = Field(description="Actual word count of the script")
     scene_directions: list[str] = Field(
-        description="Visual/camera directions for vertical video format (close-ups, transitions, etc.)"
+        description="Visual/camera directions for diary format format (close-ups, transitions, etc.)"
     )
     continuity_notes: str = Field(
-        description="Notes on how this episode connects to the previous and next episodes"
+        description="Notes on how this entry connects to the previous and next entrys"
     )
 
 
-class EpisodeScripts(BaseModel):
-    """Collection of all episode scripts."""
+class EntryScripts(BaseModel):
+    """Collection of all entry scripts."""
 
-    scripts: list[EpisodeScript] = Field(
-        description="The ordered list of episode scripts"
+    scripts: list[EntryScript] = Field(
+        description="The ordered list of entry scripts"
     )
     total_word_count: int = Field(description="Combined word count across all scripts")
     series_continuity_summary: str = Field(
-        description="Brief summary of how episodes flow together narratively"
+        description="Brief summary of how entrys flow together narratively"
     )
 
 
@@ -333,11 +333,11 @@ class EpisodeScripts(BaseModel):
 class Suggestion(BaseModel):
     """A single optimization suggestion."""
 
-    episode_number: int = Field(
-        description="Which episode this applies to (0 = series-wide)"
+    entry_number: int = Field(
+        description="Which entry this applies to (0 = series-wide)"
     )
     category: Literal[
-        "hook", "pacing", "cliffhanger", "emotion", "structure", "dialogue"
+        "hook", "pacing", "emotional_peak", "emotion", "structure", "dialogue"
     ] = Field(description="Category of improvement")
     current_issue: str = Field(description="What the current problem is")
     suggested_improvement: str = Field(description="Specific, actionable improvement")
@@ -371,11 +371,11 @@ class OptimizationReport(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class EpisodeEngineState(TypedDict):
+class EntryEngineState(TypedDict):
     """Central state object passed between all LangGraph nodes."""
 
     # Input
-    task: str  # The user's raw story idea
+    task: str  # The user's raw chat history
 
     # A0 – Input Classifier (LLM-based)
     input_classification: InputClassification | None
@@ -387,16 +387,16 @@ class EpisodeEngineState(TypedDict):
     story_validation: StoryValidation | None
     story_validation_feedback: str  # accumulated feedback for A1 retries
 
-    # A3 – Episode Planner
-    episode_planner: EpisodePlanner | None
+    # A3 – Entry Planner
+    entry_planner: EntryPlanner | None
 
-    # A4 – Episode Scripter
-    episode_scripts: EpisodeScripts | None
+    # A4 – Entry Scripter
+    entry_scripts: EntryScripts | None
 
     # A5-A7 analysis outputs
     emotional_arc: EmotionalArc | None
-    retention_analysis: RetentionAnalysis | None
-    cliffhanger_analysis: CliffhangerAnalysis | None
+    reflection_analysis: RetentionAnalysis | None
+    emotional_peak_analysis: Emotional PeakAnalysis | None
 
     # A8 – Final Validator
     final_validation: FinalValidation | None
