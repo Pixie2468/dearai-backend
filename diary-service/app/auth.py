@@ -25,14 +25,31 @@ def verify_internal_token(token_string: str = Security(api_key_header)) -> str:
         raise HTTPException(status_code=401, detail="Missing X-Internal-Auth header")
     try:
         decoded = decode(PASETO_KEY, token_string)
-        payload = decoded.payload
+        
+        import json
+        if isinstance(decoded.payload, dict):
+            payload = decoded.payload
+        else:
+            payload = json.loads(decoded.payload)
+            
         if payload.get("iss") != EXPECTED_ISSUER:
             raise ValueError(f"Invalid issuer: {payload.get('iss')}")
         if payload.get("aud") != EXPECTED_AUDIENCE:
             raise ValueError(f"Invalid audience: {payload.get('aud')}")
+            
+        import datetime
+        exp_raw = payload.get("exp")
+        if not exp_raw:
+            raise ValueError("Missing exp claim")
+        exp = datetime.datetime.fromisoformat(exp_raw.replace("Z", "+00:00"))
+        if datetime.datetime.now(datetime.timezone.utc) > exp:
+            raise ValueError("Token expired")
+            
         sub = payload.get("sub")
         if not sub:
             raise ValueError("Missing 'sub' claim")
         return str(sub)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=401, detail=f"Invalid PASETO token: {str(e)}")
