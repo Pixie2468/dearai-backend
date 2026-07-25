@@ -22,7 +22,7 @@ RUN uv sync --no-dev --frozen
 COPY --chown=appuser:appgroup app/ ./app/
 
 ENV PATH="/app/.venv/bin:$PATH"
-ENV PORT="8080"
-EXPOSE 8080
+ENV PORT="8003"
+EXPOSE 8003
 
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --workers 1 --no-access-log"]
