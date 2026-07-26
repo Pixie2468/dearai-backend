@@ -373,7 +373,7 @@ async def _handle_message(
         if not is_new_session:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.get(
-                    f"{CHAT_SERVICE_URL}/chats?session_id={session_id}&limit=20",
+                    f"{CHAT_SERVICE_URL}/chats/{session_id}?limit=20",
                     headers={"X-Internal-Auth": internal_token}
                 )
                 if resp.status_code == 200:
@@ -391,6 +391,8 @@ async def _handle_message(
         current_sentence = []
         import re
         sentence_end_pattern = re.compile(r'([.?!])\s+')
+        
+        tts_tasks = []
 
         async for chunk in stream_response(content, graph_context, history):
             ai_response_chunks.append(chunk)
@@ -418,13 +420,13 @@ async def _handle_message(
                     
                     if sentence_to_speak:
                         # Fire off TTS task for this sentence
-                        asyncio.create_task(_send_tts_audio(websocket, state, request_id, sentence_to_speak, voice))
+                        tts_tasks.append(asyncio.create_task(_send_tts_audio(websocket, state, request_id, sentence_to_speak, voice)))
 
         # Handle any remaining text for TTS
         if voice_mode and current_sentence:
             sentence_to_speak = "".join(current_sentence).strip()
             if sentence_to_speak:
-                asyncio.create_task(_send_tts_audio(websocket, state, request_id, sentence_to_speak, voice))
+                tts_tasks.append(asyncio.create_task(_send_tts_audio(websocket, state, request_id, sentence_to_speak, voice)))
 
         ai_content = "".join(ai_response_chunks)
 
@@ -439,16 +441,30 @@ async def _handle_message(
         )
         schedule_ingestion(user_id, ingest_text)
 
-        await _safe_send_json(
-            websocket,
-            state,
-            request_id,
-            {
-                "layer": "rag",
-                "content": "",
-                "final": True,
-            },
-        )
+        # Wait for all background TTS tasks to finish before signaling completion
+        if tts_tasks:
+            await asyncio.gather(*tts_tasks, return_exceptions=True)
+            await _safe_send_json(
+                websocket,
+                state,
+                request_id,
+                {
+                    "layer": "audio",
+                    "audio": "",
+                    "final": True,
+                },
+            )
+        else:
+            await _safe_send_json(
+                websocket,
+                state,
+                request_id,
+                {
+                    "layer": "rag",
+                    "content": "",
+                    "final": True,
+                },
+            )
         
         # --- Save chat to chat-service ---
         try:
