@@ -250,7 +250,7 @@ async def _auto_title_session(user_id: str, session_id: str, first_message: str)
         )
         title = response.text.strip().replace('"', '')
         token = _get_internal_token(user_id)
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             await client.patch(
                 f"{CHAT_SERVICE_URL}/sessions/{session_id}",
                 json={"title": title},
@@ -309,9 +309,10 @@ async def _handle_message(
                 {
                     "layer": "emergency",
                     "content": "Emergency: We detected that you might be in distress. If you are experiencing a crisis, please contact emergency services or a crisis helpline immediately. Help is available.",
-                    "final": True,
+                    "final": False,
                 },
             )
+            await _safe_send_json(websocket, state, request_id, {"layer": "emergency", "content": "", "final": True})
             return
 
         # --- Relevance Check ---
@@ -324,9 +325,10 @@ async def _handle_message(
                 {
                     "layer": "irrelevant",
                     "content": "I am a friendly chatbot and I am not designed to help with coding or unrelated technical tasks. Let's chat about something else!",
-                    "final": True,
+                    "final": False,
                 },
             )
+            await _safe_send_json(websocket, state, request_id, {"layer": "irrelevant", "content": "", "final": True})
             return
 
         internal_token = _get_internal_token(user_id)
@@ -334,7 +336,7 @@ async def _handle_message(
         is_new_session = False
         if not session_id:
             # Create a new session
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.post(
                     f"{CHAT_SERVICE_URL}/sessions",
                     json={"title": "New Chat"},
@@ -369,7 +371,7 @@ async def _handle_message(
 
         history = []
         if not is_new_session:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.get(
                     f"{CHAT_SERVICE_URL}/chats?session_id={session_id}&limit=20",
                     headers={"X-Internal-Auth": internal_token}
@@ -383,9 +385,6 @@ async def _handle_message(
         logger.info(
             f"[{request_id}] Graph context retrieved! Starting LLM stream…"
         )
-
-        # --- Fire-and-forget: ingest the new message in the background ---
-        schedule_ingestion(user_id, content)
 
         # --- Stream the LLM response ---
         ai_response_chunks = []
@@ -429,6 +428,17 @@ async def _handle_message(
 
         ai_content = "".join(ai_response_chunks)
 
+        # --- Fire-and-forget: ingest the full interaction in the background ---
+        import datetime
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ingest_text = (
+            f"Date: {now_str}\n"
+            f"Session: {session_id}\n"
+            f"User: {content}\n"
+            f"AI: {ai_content}"
+        )
+        schedule_ingestion(user_id, ingest_text)
+
         await _safe_send_json(
             websocket,
             state,
@@ -442,7 +452,7 @@ async def _handle_message(
         
         # --- Save chat to chat-service ---
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 headers = {"X-Internal-Auth": internal_token}
                 # Save user message
                 await client.post(

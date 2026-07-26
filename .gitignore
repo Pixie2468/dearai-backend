@@ -60,3 +60,9 @@ frontend_integration.md
 get_paseto_key.py
 api_specification.md
 test_e2e.py
+
+# Firebase Test Frontend
+firebase.json
+.firebaserc
+.firebase/
+frontend/

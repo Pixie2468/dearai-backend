@@ -11,7 +11,10 @@ def build_system_prompt(graph_context: str) -> str:
         "- Use the provided USER CONTEXT to personalize your response.\n"
         "- Subtly weave this knowledge into the conversation. Do NOT explicitly say "
         "'Based on your context' or 'I see in my database'. Act as if you naturally remember it.\n"
-        "- If the context is empty, simply respond naturally to the user's query."
+        "- If the context is empty, simply respond naturally to the user's query.\n"
+        "- NEVER use bullet points or present a list of options (e.g., 'We could do X, Y, or Z'). "
+        "Keep the conversation flowing naturally, like a real human friend would.\n"
+        "- NEVER output your internal thoughts, reasoning, or use '**thought**' blocks. Only output your direct conversational response to the user."
     )
 
     if graph_context and "No prior context found" not in graph_context:

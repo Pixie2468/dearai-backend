@@ -116,13 +116,18 @@ async def retrieve_context(user_id: str, user_query: str) -> str:
     return await get_graph_context(rag, user_query)
 
 
+_background_tasks = set()
+
 def schedule_ingestion(user_id: str, user_query: str) -> asyncio.Task:
     """Fire-and-forget: ingest *user_query* into the user's graph.
 
     Returns the background task so callers can optionally await it or
     attach error handlers.
     """
-    return asyncio.create_task(_ingest_background(user_id, user_query))
+    task = asyncio.create_task(_ingest_background(user_id, user_query))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
 
 
 async def _ingest_background(user_id: str, user_query: str) -> None:

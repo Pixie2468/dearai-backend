@@ -39,7 +39,7 @@ async def summarize_to_diary(request: Request) -> dict:
     # 1. Fetch latest diary to get threshold
     after_timestamp = None
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             headers = {"X-Internal-Auth": token}
             diary_resp = await client.get(
                 f"{DIARY_SERVICE_URL}/diary",
@@ -58,7 +58,7 @@ async def summarize_to_diary(request: Request) -> dict:
 
     # 2. Fetch chats from chat-service
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             headers = {"X-Internal-Auth": token}
             params = {"limit": 100}
             if after_timestamp:
@@ -99,7 +99,7 @@ async def summarize_to_diary(request: Request) -> dict:
         
     # 3. Post to diary-service
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             headers = {"X-Internal-Auth": token}
             diary_resp = await client.post(
                 f"{DIARY_SERVICE_URL}/diary",

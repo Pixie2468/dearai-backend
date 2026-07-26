@@ -106,17 +106,16 @@ def create_chat(
 
 @app.get("/chats", response_model=List[schemas.ChatMessageResponse])
 def get_chats(
-    session_id: str,
     skip: int = 0,
     limit: int = 100,
+    session_id: Optional[str] = None,
     after: Optional[datetime] = None,
     db: Session = Depends(get_db),
     user_id: str = Depends(auth.verify_internal_token)
 ):
-    query = db.query(models.ChatMessage).filter(
-        models.ChatMessage.user_id == user_id,
-        models.ChatMessage.session_id == session_id
-    )
+    query = db.query(models.ChatMessage).filter(models.ChatMessage.user_id == user_id)
+    if session_id:
+        query = query.filter(models.ChatMessage.session_id == session_id)
     if after:
         query = query.filter(models.ChatMessage.created_at > after)
     chats = query.order_by(models.ChatMessage.created_at.asc()).offset(skip).limit(limit).all()
