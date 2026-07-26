@@ -18,7 +18,7 @@ An internal FastAPI microservice responsible for persisting chat history in Post
 
 - **Auth:** Decrypts the V4-local PASETO token injected by the Gateway.
 - **Persistence:** Connects to PostgreSQL (`chat_db`). In production on GCP, it connects via Private Service Access (Private IP) to a Cloud SQL instance.
-- **Routing:** Reached from the internet via `https://[GATEWAY_URL]/api/chat/*`. The Gateway strips the `/api/chat` prefix when forwarding, or routes it accordingly.
+- **Routing:** Reached from the internet via `https://[GATEWAY_URL]/api/sessions/*` and `/api/chats/*`. The Gateway routes these and strips the `/api` prefix when forwarding.
 
 ---
 

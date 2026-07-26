@@ -82,6 +82,20 @@ def update_session(
     db.refresh(db_session)
     return db_session
 
+@app.delete("/sessions/{session_id}", status_code=204)
+def delete_session(
+    session_id: str,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(auth.verify_internal_token)
+):
+    db_session = db.query(models.ChatSession).filter(models.ChatSession.id == session_id, models.ChatSession.user_id == user_id).first()
+    if not db_session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    db.delete(db_session)
+    db.commit()
+    return None
+
 @app.post("/chats", response_model=schemas.ChatMessageResponse)
 def create_chat(
     chat: schemas.ChatMessageCreate,
@@ -104,18 +118,30 @@ def create_chat(
     db.refresh(db_chat)
     return db_chat
 
-@app.get("/chats", response_model=List[schemas.ChatMessageResponse])
-def get_chats(
+@app.get("/chats/{session_id}", response_model=List[schemas.ChatMessageResponse])
+def get_chats_by_session(
+    session_id: str,
     skip: int = 0,
     limit: int = 100,
-    session_id: Optional[str] = None,
+    after: Optional[datetime] = None,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(auth.verify_internal_token)
+):
+    query = db.query(models.ChatMessage).filter(models.ChatMessage.user_id == user_id, models.ChatMessage.session_id == session_id)
+    if after:
+        query = query.filter(models.ChatMessage.created_at > after)
+    chats = query.order_by(models.ChatMessage.created_at.asc()).offset(skip).limit(limit).all()
+    return chats
+
+@app.get("/chats", response_model=List[schemas.ChatMessageResponse])
+def get_all_chats(
+    skip: int = 0,
+    limit: int = 100,
     after: Optional[datetime] = None,
     db: Session = Depends(get_db),
     user_id: str = Depends(auth.verify_internal_token)
 ):
     query = db.query(models.ChatMessage).filter(models.ChatMessage.user_id == user_id)
-    if session_id:
-        query = query.filter(models.ChatMessage.session_id == session_id)
     if after:
         query = query.filter(models.ChatMessage.created_at > after)
     chats = query.order_by(models.ChatMessage.created_at.asc()).offset(skip).limit(limit).all()
