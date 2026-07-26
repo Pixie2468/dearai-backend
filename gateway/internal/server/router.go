@@ -35,9 +35,11 @@ func NewRouter(
 	// STT endpoint — proxied to AI service with the same auth pipeline.
 	mux.Handle("/voice/stt", authHandler)
 
-	// Chat service endpoints
-	mux.Handle("/api/chat", http.StripPrefix("/api/chat", middleware.RequireAuth(verifier, pasetoManager, chatProxy)))
-	mux.Handle("/api/chat/", http.StripPrefix("/api/chat", middleware.RequireAuth(verifier, pasetoManager, chatProxy)))
+	// Chat service endpoints (Sessions & Chats)
+	mux.Handle("/api/sessions", http.StripPrefix("/api", middleware.RequireAuth(verifier, pasetoManager, chatProxy)))
+	mux.Handle("/api/sessions/", http.StripPrefix("/api", middleware.RequireAuth(verifier, pasetoManager, chatProxy)))
+	mux.Handle("/api/chats", http.StripPrefix("/api", middleware.RequireAuth(verifier, pasetoManager, chatProxy)))
+	mux.Handle("/api/chats/", http.StripPrefix("/api", middleware.RequireAuth(verifier, pasetoManager, chatProxy)))
 
 	// Diary service endpoints
 	mux.Handle("/api/diary", http.StripPrefix("/api/diary", middleware.RequireAuth(verifier, pasetoManager, diaryProxy)))

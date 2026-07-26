@@ -9,7 +9,7 @@ Public-facing API gateway written in Go. It is the **only** entry point clients 
 | Concern | Detail |
 |---------|--------|
 | **OIDC verification** | Validates the client's JWT against the issuer's OIDC discovery endpoint. Enforces `email_verified = true` and the presence of `sub` + `email` claims. |
-| **PASETO minting** | Generates a V4-local symmetric token (15 s TTL) carrying the user's immutable OIDC `sub` as the token subject. |
+| **PASETO minting** | Generates a V4-local symmetric token (90 s TTL) carrying the user's immutable OIDC `sub` as the token subject. |
 | **Header scrubbing** | Strips `Authorization` before forwarding — the AI service never sees the raw OIDC JWT. |
 | **Reverse proxy** | Forwards `/chat` and `/chat/` to the AI service, including WebSocket upgrade negotiation. |
 
