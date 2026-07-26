@@ -61,7 +61,7 @@ func NewPasetoManager(cfg PasetoConfig) (TokenManager, error) {
 		cfg.MinTokenTTL = 15 * time.Second
 	}
 	if cfg.MaxTokenTTL == 0 {
-		cfg.MaxTokenTTL = 2 * time.Minute
+		cfg.MaxTokenTTL = 10 * time.Minute
 	}
 
 	// Pre-configure the parser with our strict business rules.
