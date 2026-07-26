@@ -97,9 +97,9 @@ jobs:
           env_vars: |
             ENV=production
             PASETO_SYMMETRIC_KEY=${{ secrets.PASETO_SYMMETRIC_KEY }}
-            VERTEX_GENERATION_MODEL=gemini-3.1-flash
+            VERTEX_GENERATION_MODEL=projects/${{ secrets.GCP_PROJECT_ID }}/locations/us-central1/endpoints/5821184543108890624
             VERTEX_PROJECT=${{ secrets.GCP_PROJECT_ID }}
-            VERTEX_LOCATION=${{ env.GCP_REGION }}
+            VERTEX_LOCATION=us-central1
 
       # --- CHAT SERVICE ---
       - name: Build Chat Service Image
