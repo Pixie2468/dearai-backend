@@ -21,11 +21,12 @@ A mental health companion backend consisting of cooperative services. This monor
                          ┌─────────────────────────────────┐
 Client (browser / app)   │  Go Gateway  :8080              │
   ──[OIDC JWT Bearer]──► │  • Verify JWT (OIDC discovery)  │
-                         │  • Mint PASETO (15 s, internal) │
+                         │  • Mint PASETO (90 s, internal) │
                          │  • Strip Authorization header    │
                          │  • Add X-Internal-Auth header   │
                          │  • Reverse-proxy /chat  ──────► │──► AI Service :8000
-                         │  • Reverse-proxy /api/chat ───► │──► Chat Service :8001
+                         │  • Reverse-proxy /api/sessions ─► │──► Chat Service :8001
+                         │  • Reverse-proxy /api/chats ────► │
                          │  • Reverse-proxy /api/diary ──► │──► Diary Service :8002
                          │  • Reverse-proxy /api/agent ──► │──► Agent Service :8003
                          └─────────────────────────────────┘
