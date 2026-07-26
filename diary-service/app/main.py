@@ -10,7 +10,7 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Diary Service")
 
-@app.post("/diary", response_model=schemas.DiaryEntryResponse)
+@app.post("/", response_model=schemas.DiaryEntryResponse)
 def create_diary_entry(
     entry: schemas.DiaryEntryCreate,
     db: Session = Depends(get_db),
@@ -26,7 +26,7 @@ def create_diary_entry(
     db.refresh(db_entry)
     return db_entry
 
-@app.get("/diary", response_model=List[schemas.DiaryEntryResponse])
+@app.get("/", response_model=List[schemas.DiaryEntryResponse])
 def get_diary_entries(
     skip: int = 0,
     limit: int = 100,
