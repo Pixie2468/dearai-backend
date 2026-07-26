@@ -42,7 +42,7 @@ async def summarize_to_diary(request: Request) -> dict:
         async with httpx.AsyncClient(timeout=30.0) as client:
             headers = {"X-Internal-Auth": token}
             diary_resp = await client.get(
-                f"{DIARY_SERVICE_URL}/diary",
+                f"{DIARY_SERVICE_URL}/",
                 headers=headers,
                 params={"limit": 1}
             )
@@ -102,7 +102,7 @@ async def summarize_to_diary(request: Request) -> dict:
         async with httpx.AsyncClient(timeout=30.0) as client:
             headers = {"X-Internal-Auth": token}
             diary_resp = await client.post(
-                f"{DIARY_SERVICE_URL}/diary",
+                f"{DIARY_SERVICE_URL}/",
                 json={"title": title, "content": content},
                 headers=headers
             )
