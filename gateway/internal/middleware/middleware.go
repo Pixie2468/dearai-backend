@@ -28,7 +28,7 @@ func RequireAuth(
 			return
 		}
 
-		internalToken, err := pasetoManager.Generate(claims.Subject, 5*time.Minute)
+		internalToken, err := pasetoManager.Generate(claims.Subject, 90*time.Second)
 		if err != nil {
 			log.Printf("PASETO generation failed: %v", err)
 			utils.RespondError(w, http.StatusInternalServerError, "internal server error")
