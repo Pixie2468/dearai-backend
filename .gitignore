@@ -66,3 +66,4 @@ firebase.json
 .firebaserc
 .firebase/
 frontend/
+emotion-detector/

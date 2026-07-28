@@ -206,23 +206,10 @@ async def _safe_send_json(
         logger.debug("WebSocket send failed: %s", exc)
 
 
-async def _send_tts_audio(websocket: WebSocket, state: ConnectionState, request_id: int, text: str, voice: str) -> None:
-    """Synthesize speech and send it over WebSocket as base64."""
-    if request_id != state.request_id:
-        return
-    try:
-        audio_bytes = await synthesize_speech(text, voice=voice)
-        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
-        await _safe_send_json(
-            websocket, state, request_id,
-            {
-                "layer": "audio",
-                "audio": audio_b64,
-                "final": False,
-            }
-        )
-    except Exception as exc:
-        logger.error(f"[{request_id}] TTS failed for text '{text[:20]}...': {exc}")
+async def _fetch_tts_audio_b64(text: str, voice: str) -> str:
+    """Synthesize speech and return it as base64."""
+    audio_bytes = await synthesize_speech(text, voice=voice)
+    return base64.b64encode(audio_bytes).decode("utf-8")
 
 
 def _get_internal_token(user_id: str) -> str:
@@ -392,7 +379,30 @@ async def _handle_message(
         import re
         sentence_end_pattern = re.compile(r'([.?!])\s+')
         
-        tts_tasks = []
+        tts_queue = asyncio.Queue()
+        tts_worker = None
+        
+        if voice_mode:
+            async def _tts_sender():
+                while True:
+                    item = await tts_queue.get()
+                    if item is None:
+                        break
+                    try:
+                        audio_b64 = await item
+                        if audio_b64 and request_id == state.request_id:
+                            await _safe_send_json(
+                                websocket, state, request_id,
+                                {
+                                    "layer": "audio",
+                                    "audio": audio_b64,
+                                    "final": False,
+                                }
+                            )
+                    except Exception as exc:
+                        logger.error(f"[{request_id}] TTS task failed: {exc}")
+            
+            tts_worker = asyncio.create_task(_tts_sender())
 
         async for chunk in stream_response(content, graph_context, history):
             ai_response_chunks.append(chunk)
@@ -420,13 +430,15 @@ async def _handle_message(
                     
                     if sentence_to_speak:
                         # Fire off TTS task for this sentence
-                        tts_tasks.append(asyncio.create_task(_send_tts_audio(websocket, state, request_id, sentence_to_speak, voice)))
+                        task = asyncio.create_task(_fetch_tts_audio_b64(sentence_to_speak, voice))
+                        tts_queue.put_nowait(task)
 
         # Handle any remaining text for TTS
         if voice_mode and current_sentence:
             sentence_to_speak = "".join(current_sentence).strip()
             if sentence_to_speak:
-                tts_tasks.append(asyncio.create_task(_send_tts_audio(websocket, state, request_id, sentence_to_speak, voice)))
+                task = asyncio.create_task(_fetch_tts_audio_b64(sentence_to_speak, voice))
+                tts_queue.put_nowait(task)
 
         ai_content = "".join(ai_response_chunks)
 
@@ -442,8 +454,9 @@ async def _handle_message(
         schedule_ingestion(user_id, ingest_text)
 
         # Wait for all background TTS tasks to finish before signaling completion
-        if tts_tasks:
-            await asyncio.gather(*tts_tasks, return_exceptions=True)
+        if voice_mode:
+            tts_queue.put_nowait(None)
+            await tts_worker
             await _safe_send_json(
                 websocket,
                 state,
