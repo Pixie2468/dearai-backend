@@ -42,7 +42,6 @@ def setup_llm() -> tuple[LiteLLM, LiteLLMEmbedder]:
                 model="vertex_ai/gemini-2.5-flash-lite",
                 vertex_project=os.getenv("VERTEX_PROJECT"),
                 vertex_location=os.getenv("VERTEX_LOCATION"),
-                api_base=custom_api_base,
                 temperature=0.0,
             )
 

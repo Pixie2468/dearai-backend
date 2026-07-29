@@ -46,20 +46,29 @@ async def stream_response(
         types.Content(role="user", parts=[types.Part.from_text(text=user_query)])
     )
 
-    try:
-        response_stream = await client.aio.models.generate_content_stream(
-            model=str(model),
-            contents=contents,
-            config=config,
-        )
+    for attempt in range(3):
+        try:
+            response_stream = await client.aio.models.generate_content_stream(
+                model=str(model),
+                contents=contents,
+                config=config,
+            )
 
-        async for chunk in response_stream:
-            if chunk.text:
-                yield chunk.text
+            async for chunk in response_stream:
+                if chunk.text:
+                    yield chunk.text
+            
+            return  # Success, exit the retry loop
 
-    except asyncio.CancelledError:
-        logger.info("LLM generation cancelled")
-        raise
-    except Exception as exc:
-        logger.error("LLM generation failed: %s", exc)
-        yield f"I'm having a little trouble connecting my thoughts right now (Error: {str(exc)}). Could we try that again?"
+        except asyncio.CancelledError:
+            logger.info("LLM generation cancelled")
+            raise
+        except Exception as exc:
+            if "429" in str(exc) and attempt < 2:
+                logger.warning("Hit 429 Quota limit on Vertex AI. Retrying in 2 seconds (attempt %d/3)...", attempt + 1)
+                await asyncio.sleep(2)
+                continue
+            
+            logger.error("LLM generation failed: %s", exc)
+            yield f"I'm having a little trouble connecting my thoughts right now (Error: {str(exc)}). Could we try that again?"
+            return
