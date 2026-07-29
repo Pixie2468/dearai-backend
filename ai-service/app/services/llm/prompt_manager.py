@@ -1,8 +1,8 @@
 """Prompt construction for the LLM."""
 
 
-def build_system_prompt(graph_context: str) -> str:
-    """Create the system prompt with optional graph context appended."""
+def build_system_prompt(graph_context: str, emotion: str | None = None) -> str:
+    """Create the system prompt with optional graph context and emotion appended."""
     base_instructions = (
         "You are Dear AI, an empathetic, highly conversational companion. "
         "Your goal is to provide thoughtful, supportive, and natural responses. "
@@ -18,6 +18,13 @@ def build_system_prompt(graph_context: str) -> str:
         "- IMPORTANT: If the user expresses feeling sad, lonely, or asks for advice on dealing with their feelings, DO NOT refuse to answer. You MUST provide friendly, supportive advice and suggest practical, gentle ways to cope. DO NOT say 'I am not a trained professional' or refuse to give advice. Act as a supportive friend."
     )
 
+    if emotion:
+        emotion_block = (
+            f"\n\n- IMPORTANT: The user's current detected emotion is: {emotion}. "
+            "Use this to inform your tone and empathy, but do not explicitly mention that you are reading their emotions."
+        )
+        base_instructions += emotion_block
+
     if graph_context and "No prior context found" not in graph_context:
         context_block = (
             "\n\n--- BACKGROUND USER CONTEXT ---\n"
@@ -32,3 +39,4 @@ def build_system_prompt(graph_context: str) -> str:
         )
 
     return base_instructions + context_block
+

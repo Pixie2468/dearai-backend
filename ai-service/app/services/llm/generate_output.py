@@ -13,11 +13,11 @@ from app.utils.setup_client import get_client
 logger = logging.getLogger(__name__)
 
 
-async def stream_response(user_query: str, graph_context: str, history: List[Dict[str, str]] = None) -> AsyncGenerator[str, None]:
-    """Stream model output for a user query with optional context and chat history."""
+async def stream_response(user_query: str, graph_context: str, history: List[Dict[str, str]] = None, emotion: str | None = None) -> AsyncGenerator[str, None]:
+    """Stream model output for a user query with optional context, chat history, and emotion."""
     client, model = get_client()
 
-    system_instruction = build_system_prompt(graph_context)
+    system_instruction = build_system_prompt(graph_context, emotion)
 
     config = types.GenerateContentConfig(
         system_instruction=system_instruction,

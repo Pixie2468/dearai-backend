@@ -258,6 +258,7 @@ async def _handle_message(
     voice: str,
     request_id: int,
     session_id: str | None,
+    emotions: list[str] | None = None,
 ) -> None:
     """Run GraphRAG retrieval + LLM streaming for a single user message.
 
@@ -265,6 +266,20 @@ async def _handle_message(
     background task so it never blocks the response.
     """
     try:
+        primary_emotion = None
+        if emotions:
+            valid_emotions = [e for e in emotions if e and isinstance(e, str)]
+            if valid_emotions:
+                counts = {}
+                for e in valid_emotions:
+                    counts[e] = counts.get(e, 0) + 1
+                max_count = max(counts.values())
+                candidates = [e for e, count in counts.items() if count == max_count]
+                for e in reversed(valid_emotions):
+                    if e in candidates:
+                        primary_emotion = e
+                        break
+
         # --- STT ---
         if audio_b64:
             try:
@@ -404,7 +419,7 @@ async def _handle_message(
             
             tts_worker = asyncio.create_task(_tts_sender())
 
-        async for chunk in stream_response(content, graph_context, history):
+        async for chunk in stream_response(content, graph_context, history, primary_emotion):
             ai_response_chunks.append(chunk)
             await _safe_send_json(
                 websocket,
@@ -541,6 +556,7 @@ async def chat_ws(websocket: WebSocket) -> None:
             session_id = payload.get("session_id")
             voice_mode = payload.get("voice_mode", False)
             voice = payload.get("voice", "en-US-Journey-F")
+            emotions = payload.get("emotions", [])
             
             if not content and not audio_b64:
                 await websocket.send_json({"error": "missing_content_or_audio"})
@@ -552,7 +568,9 @@ async def chat_ws(websocket: WebSocket) -> None:
             current_id = state.request_id
 
             state.active_task = asyncio.create_task(
-                _handle_message(websocket, state, user_id, token, content, audio_b64, voice_mode, voice, current_id, session_id)
+                _handle_message(
+                    websocket, state, user_id, token, content, audio_b64, voice_mode, voice, current_id, session_id, emotions
+                )
             )
     except WebSocketDisconnect:
         await _cancel_active(state)
