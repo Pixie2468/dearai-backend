@@ -288,7 +288,7 @@ async def _handle_message(
                 if content and content.strip():
                     await _safe_send_json(
                         websocket, state, request_id, 
-                        {"layer": "transcript", "content": content.strip(), "final": True}
+                        {"layer": "transcript", "content": content.strip(), "final": False}
                     )
             except Exception as exc:
                 logger.error(f"[{request_id}] Failed to decode or transcribe audio: {exc}")
@@ -297,6 +297,10 @@ async def _handle_message(
 
         if not content or not content.strip():
             # Nothing to process
+            await _safe_send_json(
+                websocket, state, request_id,
+                {"layer": "rag", "content": "", "final": True}
+            )
             return
 
         content = content.strip()
@@ -389,12 +393,16 @@ async def _handle_message(
         
         if voice_mode:
             async def _tts_sender():
+                logger.info(f"[{request_id}] TTS sender started")
                 while True:
                     item = await tts_queue.get()
                     if item is None:
+                        logger.info(f"[{request_id}] TTS sender received None, stopping")
                         break
                     try:
+                        logger.info(f"[{request_id}] TTS sender awaiting task")
                         audio_b64 = await item
+                        logger.info(f"[{request_id}] TTS sender received audio, len: {len(audio_b64) if audio_b64 else 0}, match_req: {request_id == state.request_id}")
                         if audio_b64 and request_id == state.request_id:
                             await _safe_send_json(
                                 websocket, state, request_id,
@@ -404,6 +412,7 @@ async def _handle_message(
                                     "final": False,
                                 }
                             )
+                            logger.info(f"[{request_id}] TTS sender sent audio payload")
                     except Exception as exc:
                         logger.error(f"[{request_id}] TTS task failed: {exc}")
             
