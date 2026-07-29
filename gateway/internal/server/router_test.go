@@ -41,7 +41,7 @@ func TestRouterHealth(t *testing.T) {
 		t.Fatalf("unexpected proxy error: %v", err)
 	}
 
-	router := NewRouter(tokenVerifierStub{}, tokenManagerStub{}, proxyHandler)
+	router := NewRouter(tokenVerifierStub{}, tokenManagerStub{}, proxyHandler, proxyHandler, proxyHandler, proxyHandler)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -73,7 +73,7 @@ func TestRouterChatRoute(t *testing.T) {
 
 	verifier := tokenVerifierStub{claims: &auth.ExternalClaims{Email: "user@example.com"}}
 	manager := tokenManagerStub{token: "internal"}
-	router := NewRouter(verifier, manager, proxyHandler)
+	router := NewRouter(verifier, manager, proxyHandler, proxyHandler, proxyHandler, proxyHandler)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/chat", nil)

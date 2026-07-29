@@ -21,8 +21,11 @@ func NewRouter(
 
 	mux := http.NewServeMux()
 
-	// 1. Initialize the middleware with our dependencies and wrap the proxy handler.
+	// 1. Initialize auth-wrapped handlers per proxy (reuse across routes).
 	authHandler := middleware.RequireAuth(verifier, pasetoManager, p)
+	chatAuth := middleware.RequireAuth(verifier, pasetoManager, chatProxy)
+	diaryAuth := middleware.RequireAuth(verifier, pasetoManager, diaryProxy)
+	agentAuth := middleware.RequireAuth(verifier, pasetoManager, agentProxy)
 
 	// 2. Register the wrapped proxy handler for both exact and subtree paths.
 	// This avoids redirecting websocket upgrades from /chat -> /chat/.
@@ -36,18 +39,18 @@ func NewRouter(
 	mux.Handle("/voice/stt", authHandler)
 
 	// Chat service endpoints (Sessions & Chats)
-	mux.Handle("/api/sessions", http.StripPrefix("/api", middleware.RequireAuth(verifier, pasetoManager, chatProxy)))
-	mux.Handle("/api/sessions/", http.StripPrefix("/api", middleware.RequireAuth(verifier, pasetoManager, chatProxy)))
-	mux.Handle("/api/chats", http.StripPrefix("/api", middleware.RequireAuth(verifier, pasetoManager, chatProxy)))
-	mux.Handle("/api/chats/", http.StripPrefix("/api", middleware.RequireAuth(verifier, pasetoManager, chatProxy)))
+	mux.Handle("/api/sessions", http.StripPrefix("/api", chatAuth))
+	mux.Handle("/api/sessions/", http.StripPrefix("/api", chatAuth))
+	mux.Handle("/api/chats", http.StripPrefix("/api", chatAuth))
+	mux.Handle("/api/chats/", http.StripPrefix("/api", chatAuth))
 
 	// Diary service endpoints
-	mux.Handle("/api/diary", http.StripPrefix("/api/diary", middleware.RequireAuth(verifier, pasetoManager, diaryProxy)))
-	mux.Handle("/api/diary/", http.StripPrefix("/api/diary", middleware.RequireAuth(verifier, pasetoManager, diaryProxy)))
+	mux.Handle("/api/diary", http.StripPrefix("/api/diary", diaryAuth))
+	mux.Handle("/api/diary/", http.StripPrefix("/api/diary", diaryAuth))
 
 	// Agent service endpoints
-	mux.Handle("/api/agent", http.StripPrefix("/api/agent", middleware.RequireAuth(verifier, pasetoManager, agentProxy)))
-	mux.Handle("/api/agent/", http.StripPrefix("/api/agent", middleware.RequireAuth(verifier, pasetoManager, agentProxy)))
+	mux.Handle("/api/agent", http.StripPrefix("/api/agent", agentAuth))
+	mux.Handle("/api/agent/", http.StripPrefix("/api/agent", agentAuth))
 
 	// 3. Register public routes (Using Go 1.22+ strict method routing)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
