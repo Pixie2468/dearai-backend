@@ -13,7 +13,12 @@ from app.utils.setup_client import get_client
 logger = logging.getLogger(__name__)
 
 
-async def stream_response(user_query: str, graph_context: str, history: List[Dict[str, str]] = None, emotion: str | None = None) -> AsyncGenerator[str, None]:
+async def stream_response(
+    user_query: str,
+    graph_context: str,
+    history: List[Dict[str, str]] = None,
+    emotion: str | None = None,
+) -> AsyncGenerator[str, None]:
     """Stream model output for a user query with optional context, chat history, and emotion."""
     client, model = get_client()
 
@@ -32,17 +37,13 @@ async def stream_response(user_query: str, graph_context: str, history: List[Dic
             role = "model" if msg.get("role") == "ai" else "user"
             contents.append(
                 types.Content(
-                    role=role,
-                    parts=[types.Part.from_text(text=msg.get("content", ""))]
+                    role=role, parts=[types.Part.from_text(text=msg.get("content", ""))]
                 )
             )
-            
+
     # Append the current user query
     contents.append(
-        types.Content(
-            role="user",
-            parts=[types.Part.from_text(text=user_query)]
-        )
+        types.Content(role="user", parts=[types.Part.from_text(text=user_query)])
     )
 
     try:
@@ -61,4 +62,4 @@ async def stream_response(user_query: str, graph_context: str, history: List[Dic
         raise
     except Exception as exc:
         logger.error("LLM generation failed: %s", exc)
-        yield "I'm having a little trouble connecting my thoughts right now. Could we try that again?"
+        yield f"I'm having a little trouble connecting my thoughts right now (Error: {str(exc)}). Could we try that again?"
