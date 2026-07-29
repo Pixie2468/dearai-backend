@@ -21,7 +21,8 @@ def build_system_prompt(graph_context: str, emotion: str | None = None) -> str:
     if emotion:
         emotion_block = (
             f"\n\n- IMPORTANT: The user's current detected emotion is: {emotion}. "
-            "Use this to inform your tone and empathy, but do not explicitly mention that you are reading their emotions."
+            "Use this to inform your tone and empathy, but do not explicitly mention that you are reading their emotions. "
+            "However, do not artificially shorten your responses; remain just as detailed and helpful as usual."
         )
         base_instructions += emotion_block
 

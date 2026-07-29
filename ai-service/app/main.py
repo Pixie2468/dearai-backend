@@ -304,32 +304,22 @@ async def _handle_message(
         # --- Safety Check ---
         if not check_safety(content):
             logger.warning(f"[{request_id}] Safety check failed for user {user_id}. Halting generation.")
-            await _safe_send_json(
-                websocket,
-                state,
-                request_id,
-                {
-                    "layer": "emergency",
-                    "content": "Emergency: We detected that you might be in distress. If you are experiencing a crisis, please contact emergency services or a crisis helpline immediately. Help is available.",
-                    "final": False,
-                },
-            )
+            msg = "Emergency: We detected that you might be in distress. If you are experiencing a crisis, please contact emergency services or a crisis helpline immediately. Help is available."
+            await _safe_send_json(websocket, state, request_id, {"layer": "emergency", "content": msg, "final": False})
+            if voice_mode:
+                audio_b64 = await _fetch_tts_audio_b64(msg, voice)
+                await _safe_send_json(websocket, state, request_id, {"layer": "audio", "audio": audio_b64, "final": False})
             await _safe_send_json(websocket, state, request_id, {"layer": "emergency", "content": "", "final": True})
             return
 
         # --- Relevance Check ---
         if not check_relevance(content):
             logger.warning(f"[{request_id}] Relevance check failed for user {user_id}. Halting generation.")
-            await _safe_send_json(
-                websocket,
-                state,
-                request_id,
-                {
-                    "layer": "irrelevant",
-                    "content": "I am a friendly chatbot and I am not designed to help with coding or unrelated technical tasks. Let's chat about something else!",
-                    "final": False,
-                },
-            )
+            msg = "I am a friendly chatbot and I am not designed to help with coding or unrelated technical tasks. Let's chat about something else!"
+            await _safe_send_json(websocket, state, request_id, {"layer": "irrelevant", "content": msg, "final": False})
+            if voice_mode:
+                audio_b64 = await _fetch_tts_audio_b64(msg, voice)
+                await _safe_send_json(websocket, state, request_id, {"layer": "audio", "audio": audio_b64, "final": False})
             await _safe_send_json(websocket, state, request_id, {"layer": "irrelevant", "content": "", "final": True})
             return
 
