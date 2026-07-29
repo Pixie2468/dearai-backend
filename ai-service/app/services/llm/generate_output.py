@@ -57,7 +57,7 @@ async def stream_response(
             async for chunk in response_stream:
                 if chunk.text:
                     yield chunk.text
-            
+
             return  # Success, exit the retry loop
 
         except asyncio.CancelledError:
@@ -65,10 +65,13 @@ async def stream_response(
             raise
         except Exception as exc:
             if "429" in str(exc) and attempt < 2:
-                logger.warning("Hit 429 Quota limit on Vertex AI. Retrying in 2 seconds (attempt %d/3)...", attempt + 1)
+                logger.warning(
+                    "Hit 429 Quota limit on Vertex AI. Retrying in 2 seconds (attempt %d/3)...",
+                    attempt + 1,
+                )
                 await asyncio.sleep(2)
                 continue
-            
+
             logger.error("LLM generation failed: %s", exc)
-            yield f"I'm having a little trouble connecting my thoughts right now (Error: {str(exc)}). Could we try that again?"
+            yield f"I'm having a little trouble connecting my thoughts right now. Could we try that again?"
             return
